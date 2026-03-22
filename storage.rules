@@ -1,0 +1,53 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuth()  { return request.auth != null; }
+    function isMod()   {
+      return request.auth.token.get('role','user') in ['moderator','admin'];
+    }
+    function isAdmin() { return request.auth.token.get('role','user') == 'admin'; }
+    function sizeOk(mb){ return request.resource.size < mb * 1024 * 1024; }
+
+    match /uploads/images/{userId}/{fileName} {
+      allow write:  if isAuth()
+                    && request.auth.uid == userId
+                    && request.resource.contentType.matches('image/.*')
+                    && sizeOk(10);
+      allow read:   if isMod() || (isAuth() && request.auth.uid == userId);
+      allow delete: if isAdmin();
+    }
+
+    match /uploads/audio/{userId}/{fileName} {
+      allow write:  if isAuth()
+                    && request.auth.uid == userId
+                    && request.resource.contentType.matches('audio/.*')
+                    && sizeOk(50);
+      allow read:   if isMod() || (isAuth() && request.auth.uid == userId);
+      allow delete: if isAdmin();
+    }
+
+    match /uploads/video/{userId}/{fileName} {
+      allow write:  if isAuth()
+                    && request.auth.uid == userId
+                    && request.resource.contentType.matches('video/.*')
+                    && sizeOk(200);
+      allow read:   if isMod() || (isAuth() && request.auth.uid == userId);
+      allow delete: if isAdmin();
+    }
+
+    match /processed/{contentId}/{fileName} {
+      allow read:   if isMod();
+      allow write:  if false;
+    }
+
+    match /exports/{adminId}/{fileName} {
+      allow read:   if isAdmin() && request.auth.uid == adminId;
+      allow write, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
