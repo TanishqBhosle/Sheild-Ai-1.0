@@ -17,7 +17,16 @@ const ALLOWED_ORIGINS = [
 
 app.use(
   helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://apis.google.com"],
+        connectSrc: ["'self'", "https://*.firebaseio.com", "https://*.googleapis.com"],
+        imgSrc: ["'self'", "data:", "https://*.googleusercontent.com"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        upgradeInsecureRequests: [],
+      },
+    },
     crossOriginEmbedderPolicy: false,
   })
 )
@@ -25,13 +34,21 @@ app.use(
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow all origins in development (Firebase Functions deployed URL varies)
-      if (!origin || origin.includes('localhost')) {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) {
         callback(null, true)
-      } else if (ALLOWED_ORIGINS.includes(origin)) {
+      }
+      // Allow localhost ONLY in non-production environments
+      else if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
         callback(null, true)
-      } else {
-        callback(null, true) // Allow all origins for deployed Cloud Functions
+      }
+      // Allow configured production origins
+      else if (ALLOWED_ORIGINS.includes(origin)) {
+        callback(null, true)
+      }
+      // Reject all other origins - prevents CSRF attacks
+      else {
+        callback(new Error('Origin not allowed by CORS policy'))
       }
     },
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],

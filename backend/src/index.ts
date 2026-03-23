@@ -83,7 +83,7 @@ export const onContentCreated = onDocumentCreated(
       }
 
       const contentToAnalyze = data.payload ?? data.storageRef ?? ''
-      const geminiResult = await analyzeContent(contentToAnalyze, data.type)
+      const geminiResult = await analyzeContent(contentToAnalyze, data.type, data.submittedBy)
       const decision = evaluateDecision(geminiResult, thresholds, rules, automation)
 
       const resultId = `${contentId}_result`
@@ -187,6 +187,14 @@ export const setUserRole = onCall({ region: REGION }, async (request) => {
     if (!adminSnap.empty) {
       throw new HttpsError('permission-denied', 'Not authorized')
     }
+    // Only allow bootstrapping if explicitly enabled in environment
+    if (process.env.ENABLE_ADMIN_BOOTSTRAP !== 'true') {
+      throw new HttpsError(
+        'permission-denied',
+        'Initial admin setup is disabled. Set ENABLE_ADMIN_BOOTSTRAP=true to enable.'
+      )
+    }
+    logger.warn('New admin bootstrap bypass used', { uid: request.auth.uid })
   }
 
   await auth.setCustomUserClaims(targetUid, { role })

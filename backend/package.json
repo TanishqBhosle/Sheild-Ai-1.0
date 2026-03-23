@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "serve": "npm run build && firebase emulators:start --only functions",
+    "dev": "npm run serve",
+    "serve": "npm run build && npx firebase-tools@13.15.0 emulators:start",
     "shell": "npm run build && firebase functions:shell",
     "lint": "eslint src --ext ts",
     "logs": "firebase functions:log"

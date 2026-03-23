@@ -74,19 +74,31 @@ export const setRoleHttp = async (req: Request, res: Response): Promise<void> =>
 
     const callerRole = req.user.role
     if (callerRole !== 'admin') {
+      // Non-admins cannot grant roles unless it's the bootstrap case
       const adminSnap = await db
         .collection('users')
         .where('role', '==', 'admin')
         .limit(1)
         .get()
       if (!adminSnap.empty) {
+        // Admins exist: only admins can grant roles
         res.status(403).json({
           error: 'FORBIDDEN',
-          message: 'Not authorized',
+          message: 'Not authorized. Only admins can modify user roles.',
           statusCode: 403,
         })
         return
       }
+      // Bootstrap case: only allow user to grant admin to THEMSELVES
+      if (targetUid !== req.user.uid) {
+        res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Bootstrap only allows self-grant of admin role.',
+          statusCode: 403,
+        })
+        return
+      }
+      logger.warn('BOOTSTRAP: First user granted admin role', { uid: req.user.uid, targetUid })
     }
 
     await auth.setCustomUserClaims(targetUid, { role })

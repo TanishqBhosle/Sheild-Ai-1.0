@@ -13,7 +13,12 @@ const sanitizePayload = (raw: string | undefined): string | undefined => {
   if (raw === undefined) {
     return undefined
   }
-  return raw.replace(/<[^>]*>/g, '').trim()
+  // Remove tags and dangerous attributes like on* or javascript:
+  return raw
+    .replace(/<[^>]*>?/gm, '') // Strip tags
+    .replace(/on\w+\s*=/gi, '') // Strip event handlers
+    .replace(/javascript:/gi, '') // Strip javascript protocol
+    .trim()
 }
 
 export const submitContent = async (req: Request, res: Response): Promise<void> => {
