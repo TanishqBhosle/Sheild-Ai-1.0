@@ -1,9 +1,9 @@
 import type { Request, Response } from 'express'
-import { db, FieldValue } from '../config/firebase'
 import { contentRepo } from '../repositories/content.repo'
 import { moderationRepo } from '../repositories/moderation.repo'
 import { auditRepo } from '../repositories/audit.repo'
 import { usersRepo } from '../repositories/users.repo'
+import { feedbackRepo } from '../repositories/feedback.repo'
 import { AppError } from '../utils/errors'
 import { logger } from '../utils/logger'
 import { LIMITS } from '../config/constants'
@@ -219,13 +219,12 @@ export const postFeedback = async (req: Request, res: Response): Promise<void> =
       notes?: string
     }
     const feedbackId = `FB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    await db.collection('feedback').doc(feedbackId).set({
+    await feedbackRepo.create({
       feedbackId,
       contentId,
       moderatorId: req.user.uid,
       correctLabel,
       notes: notes ?? '',
-      createdAt: FieldValue.serverTimestamp(),
     })
     await usersRepo.incrementCasesReviewed(req.user.uid)
     res.json({ feedbackId, recorded: true })

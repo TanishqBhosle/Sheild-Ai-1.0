@@ -10,8 +10,8 @@ import analyticsRoutes from './analytics.routes'
 
 const router = Router()
 
-router.use(authenticate)
 router.use(rateLimit)
+router.use(authenticate)
 
 router.use('/auth', authRoutes)
 router.use('/content', contentRoutes)

@@ -7,7 +7,7 @@ import {
   where,
   type Unsubscribe,
 } from 'firebase/firestore'
-import { firebaseDb } from '../config/firebase'
+import { fbDb } from '../config/firebase'
 import {
   fetchAnalytics,
   fetchQueue,
@@ -26,7 +26,7 @@ export function useModeration() {
     let unsub: Unsubscribe | undefined
     try {
       const q = query(
-        collection(firebaseDb, 'content'),
+        collection(fbDb, 'content'),
         where('status', '==', 'flagged'),
         where('isDeleted', '==', false),
         orderBy('submittedAt', 'desc')

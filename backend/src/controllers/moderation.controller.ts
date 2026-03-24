@@ -1,10 +1,9 @@
 import type { Request, Response } from 'express'
-import type { Timestamp as FirestoreTimestamp } from 'firebase-admin/firestore'
-import { db, FieldValue } from '../config/firebase'
 import { moderationRepo } from '../repositories/moderation.repo'
 import { contentRepo } from '../repositories/content.repo'
 import { auditRepo } from '../repositories/audit.repo'
 import { usersRepo } from '../repositories/users.repo'
+import { analyticsRepo } from '../repositories/analytics.repo'
 import { notifyUserEvent } from '../services/notification.service'
 import { DECISION_TYPES, CACHE_TTL } from '../config/constants'
 import { AppError } from '../utils/errors'
@@ -113,7 +112,6 @@ export const patchDecision = async (req: Request, res: Response): Promise<void> 
     await moderationRepo.updateDecision(contentId, {
       finalDecision: decision,
       reviewedBy: req.user.uid,
-      reviewedAt: FieldValue.serverTimestamp(),
       notes: notes ?? null,
       isOverride,
     })
@@ -168,16 +166,11 @@ export const patchDecision = async (req: Request, res: Response): Promise<void> 
 
 export const getStats = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const cacheRef = db.doc('cache/stats')
-    const cacheSnap = await cacheRef.get()
+    const cached = await analyticsRepo.getCache('stats')
     const now = Date.now()
-    if (cacheSnap.exists) {
-      const data = cacheSnap.data() as {
-        expiresAt?: number
-        payload?: Record<string, number>
-      }
-      if (typeof data.expiresAt === 'number' && data.expiresAt > now && data.payload) {
-        res.json(data.payload)
+    if (cached) {
+      if (typeof cached.expiresAt === 'number' && cached.expiresAt > now && cached.payload) {
+        res.json(cached.payload)
         return
       }
     }
@@ -186,22 +179,11 @@ export const getStats = async (_req: Request, res: Response): Promise<void> => {
     start.setHours(0, 0, 0, 0)
     const stats = await moderationRepo.getStats(start)
 
-    const appealsResolved = await db
-      .collection('appeals')
-      .where('status', 'in', ['overturned', 'upheld'])
-      .count()
-      .get()
-    const totalAppealOutcomes = appealsResolved.data().count
-
-    const overturned = await db
-      .collection('appeals')
-      .where('status', '==', 'overturned')
-      .count()
-      .get()
-    const overturnedCount = overturned.data().count
+    const appealStats = await moderationRepo.getAppealStats()
+    const totalAppealOutcomes = appealStats.total
 
     const appealSuccessRate =
-      totalAppealOutcomes > 0 ? overturnedCount / totalAppealOutcomes : 0
+      totalAppealOutcomes > 0 ? appealStats.overturned / totalAppealOutcomes : 0
 
     const modelAccuracy =
       stats.reviewed > 0
@@ -214,18 +196,13 @@ export const getStats = async (_req: Request, res: Response): Promise<void> => {
     const overrideRate =
       stats.reviewed > 0 ? stats.overrides / stats.reviewed : 0
 
-    const resultsForTime = await db
-      .collection('moderation_results')
-      .where('createdAt', '>=', start)
-      .limit(200)
-      .get()
+    const resultsForTime = await moderationRepo.getResultsForLatency(start, 200)
 
     let reviewMs = 0
     let reviewN = 0
-    for (const d of resultsForTime.docs) {
-      const m = d.data()
-      const cAt = m['createdAt'] as FirestoreTimestamp | undefined
-      const rAt = m['reviewedAt'] as FirestoreTimestamp | undefined
+    for (const m of resultsForTime) {
+      const cAt = m.createdAt as any
+      const rAt = m.reviewedAt as any
       if (cAt && rAt && typeof cAt.toMillis === 'function' && typeof rAt.toMillis === 'function') {
         const delta = rAt.toMillis() - cAt.toMillis()
         if (delta > 0) {
@@ -249,7 +226,7 @@ export const getStats = async (_req: Request, res: Response): Promise<void> => {
       overrideRate,
     }
 
-    await cacheRef.set({
+    await analyticsRepo.setCache('stats', {
       expiresAt: now + CACHE_TTL.STATS,
       payload,
     })

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express'
-import { db, FieldValue } from '../config/firebase'
+import { rateLimitRepo } from '../repositories/rateLimit.repo'
 
 const WINDOW_MS = 60 * 1000
 const MAX_REQ = 100
@@ -9,32 +9,16 @@ export const rateLimit = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  if (!req.user?.uid) {
-    next()
-    return
-  }
-
-  const uid = req.user.uid
+  const identifier = req.ip || 'unknown'
   const windowId = Math.floor(Date.now() / WINDOW_MS)
-  const docRef = db.collection('_rateLimit').doc(`${uid}_${windowId}`)
 
   try {
-    const result = await db.runTransaction(async (tx) => {
-      const doc = await tx.get(docRef)
-      const count = doc.exists ? (doc.data()?.count as number) : 0
-      if (count >= MAX_REQ) {
-        return { limited: true as const, count }
-      }
-      tx.set(
-        docRef,
-        {
-          count: FieldValue.increment(1),
-          expiresAt: Date.now() + WINDOW_MS,
-        },
-        { merge: true }
-      )
-      return { limited: false as const, count: count + 1 }
-    })
+    const result = await rateLimitRepo.checkAndIncrement(
+      identifier,
+      windowId,
+      MAX_REQ,
+      WINDOW_MS
+    )
 
     res.setHeader('X-RateLimit-Limit', MAX_REQ)
     res.setHeader('X-RateLimit-Remaining', Math.max(0, MAX_REQ - result.count))

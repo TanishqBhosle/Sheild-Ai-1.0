@@ -6,6 +6,7 @@ import { errorHandler } from './utils/errors'
 import { logger } from './utils/logger'
 
 const app = express()
+app.set('trust proxy', 1)
 
 const ALLOWED_ORIGINS = [
   'https://shieldai.web.app',

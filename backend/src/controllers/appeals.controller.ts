@@ -1,5 +1,4 @@
 import type { Request, Response } from 'express'
-import { FieldValue } from '../config/firebase'
 import { appealsRepo } from '../repositories/appeals.repo'
 import { contentRepo } from '../repositories/content.repo'
 import { moderationRepo } from '../repositories/moderation.repo'
@@ -70,7 +69,6 @@ export const createAppeal = async (req: Request, res: Response): Promise<void> =
       reason,
       status: 'pending',
       notifyUser: notifyUser ?? false,
-      submittedAt: FieldValue.serverTimestamp(),
     })
 
     const submittedAt = new Date().toISOString()
@@ -199,7 +197,6 @@ export const resolveAppeal = async (req: Request, res: Response): Promise<void> 
       await moderationRepo.updateDecision(appeal.contentId, {
         finalDecision: 'allow',
         reviewedBy: req.user.uid,
-        reviewedAt: FieldValue.serverTimestamp(),
         notes: responseMessage ?? 'Appeal overturned',
         isOverride: true,
       })
@@ -217,7 +214,7 @@ export const resolveAppeal = async (req: Request, res: Response): Promise<void> 
       resolution,
       responseMessage: responseMessage ?? null,
       reviewedBy: req.user.uid,
-      resolvedAt: FieldValue.serverTimestamp(),
+      resolvedAt: 'AUTO',
       notifyUser: notifyUser ?? false,
     })
 

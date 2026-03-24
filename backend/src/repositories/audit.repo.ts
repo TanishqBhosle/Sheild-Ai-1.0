@@ -30,11 +30,12 @@ export const auditRepo = {
         ipAddress: input.ipAddress ?? null,
       })
     } catch (error) {
-      logger.warn('auditRepo.writeLog failed', {
+      logger.error('auditRepo.writeLog failed', {
         error: error instanceof Error ? error.message : String(error),
         action: input.action,
         targetId: input.targetId,
       })
+      throw error
     }
   },
 }

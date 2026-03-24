@@ -4,6 +4,9 @@ import type { UserDoc } from '../types'
 const COLLECTION = 'users'
 
 export const usersRepo = {
+  async create(data: UserDoc): Promise<void> {
+    await db.collection(COLLECTION).doc(data.uid).set(data)
+  },
   async findByUid(uid: string): Promise<UserDoc | null> {
     const snap = await db.collection(COLLECTION).doc(uid).get()
     if (!snap.exists) {

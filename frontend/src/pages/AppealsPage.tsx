@@ -8,7 +8,7 @@ import {
   query,
   where,
 } from 'firebase/firestore'
-import { firebaseDb } from '../config/firebase'
+import { fbDb } from '../config/firebase'
 import { useAuth } from '../hooks/useAuth'
 import { useAppeals } from '../hooks/useAppeals'
 import type { AppealDoc, AppealStatus, ResolutionType } from '../types'
@@ -38,7 +38,7 @@ export default function AppealsPage() {
       return undefined
     }
     const q = query(
-      collection(firebaseDb, 'appeals'),
+      collection(fbDb, 'appeals'),
       where('userId', '==', user.uid),
       orderBy('submittedAt', 'desc')
     )

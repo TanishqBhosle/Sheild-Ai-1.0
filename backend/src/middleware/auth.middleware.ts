@@ -18,6 +18,9 @@ export const authenticate = async (
     const decoded = await auth.verifyIdToken(token, true)
 
     const roleClaim = decoded['role']
+    if (!roleClaim) {
+      throw new UnauthorizedError('Missing role claim')
+    }
     const role: UserRole =
       roleClaim === 'moderator' || roleClaim === 'admin' || roleClaim === 'user'
         ? roleClaim

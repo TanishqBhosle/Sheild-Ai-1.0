@@ -4,13 +4,14 @@ import type { UserRecord } from 'firebase-admin/auth'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import * as admin from 'firebase-admin'
 import app from './app'
-import { db, FieldValue, auth } from './config/firebase'
+import { FieldValue, auth } from './config/firebase'
 import { analyzeContent } from './services/gemini.service'
 import { evaluateDecision } from './services/decision.service'
 import { contentRepo } from './repositories/content.repo'
 import { moderationRepo } from './repositories/moderation.repo'
 import { policiesRepo } from './repositories/policies.repo'
 import { auditRepo } from './repositories/audit.repo'
+import { usersRepo } from './repositories/users.repo'
 import { logger } from './utils/logger'
 import { DEFAULT_THRESHOLDS, REGION } from './config/constants'
 import type { ContentDoc, UserDoc } from './types'
@@ -39,7 +40,7 @@ export const onUserCreated = functionsV1
       casesReviewed: 0,
     }
     try {
-      await db.collection('users').doc(user.uid).set(doc)
+      await usersRepo.create(doc)
       logger.info('User doc created', { uid: user.uid })
     } catch (err) {
       logger.error('Failed to create user doc', {
@@ -183,8 +184,9 @@ export const setUserRole = onCall({ region: REGION }, async (request) => {
   }
 
   if (callerRole !== 'admin') {
-    const adminSnap = await db.collection('users').where('role', '==', 'admin').limit(1).get()
-    if (!adminSnap.empty) {
+    const list = await usersRepo.listTeam(1)
+    const isAdminPresent = list.some(u => u.role === 'admin')
+    if (isAdminPresent) {
       throw new HttpsError('permission-denied', 'Not authorized')
     }
     // Only allow bootstrapping if explicitly enabled in environment
@@ -198,7 +200,7 @@ export const setUserRole = onCall({ region: REGION }, async (request) => {
   }
 
   await auth.setCustomUserClaims(targetUid, { role })
-  await db.collection('users').doc(targetUid).update({ role })
+  await usersRepo.updateRole(targetUid, role as any)
 
   await auditRepo.writeLog({
     actorId: request.auth.uid,

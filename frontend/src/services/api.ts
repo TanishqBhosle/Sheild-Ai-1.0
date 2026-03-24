@@ -1,5 +1,5 @@
 import axios, { type AxiosError } from 'axios'
-import { firebaseAuth } from '../config/firebase'
+import { fbAuth } from '../config/firebase'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -8,7 +8,7 @@ const api = axios.create({
 })
 
 api.interceptors.request.use(async (config) => {
-  const user = firebaseAuth.currentUser
+  const user = fbAuth.currentUser
   if (user) {
     const token = await user.getIdToken(false)
     config.headers.Authorization = `Bearer ${token}`
@@ -20,7 +20,7 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
-      await firebaseAuth.signOut()
+      await fbAuth.signOut()
       window.location.replace('/login')
     }
     return Promise.reject(error)

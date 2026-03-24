@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
-import { db } from '../config/firebase'
-import { logger } from '../utils/logger'
+import { analyticsRepo } from '../repositories/analytics.repo'
 import { moderationRepo } from '../repositories/moderation.repo'
+import { logger } from '../utils/logger'
 import type { ContentDoc } from '../types'
 
 type RangeKey = '7d' | '30d' | 'today'
@@ -29,21 +29,14 @@ const parseRange = (raw: unknown): RangeKey => {
 
 const buildAnalyticsPayload = async (range: RangeKey) => {
   const since = startForRange(range)
-  const snap = await db
-    .collection('content')
-    .where('isDeleted', '==', false)
-    .where('submittedAt', '>=', since)
-    .orderBy('submittedAt', 'asc')
-    .limit(2000)
-    .get()
+  const docs = await analyticsRepo.getContentInRange(since)
 
   const timeMap = new Map<
     string,
     { submitted: number; flagged: number; blocked: number; allowed: number }
   >()
 
-  for (const doc of snap.docs) {
-    const c = doc.data() as ContentDoc
+  for (const c of docs) {
     const ts = c.submittedAt?.toDate?.() ?? new Date()
     const key = dateKey(ts)
     const cur = timeMap.get(key) ?? {
@@ -75,15 +68,11 @@ const buildAnalyticsPayload = async (range: RangeKey) => {
       allowed: v.allowed,
     }))
 
-  const modSnap = await db
-    .collection('moderation_results')
-    .where('createdAt', '>=', since)
-    .limit(2000)
-    .get()
+  const modResults = await analyticsRepo.getModerationResultsInRange(since)
 
   const catMap = new Map<string, number>()
-  for (const d of modSnap.docs) {
-    const cat = String(d.data()['category'] ?? 'Other')
+  for (const m of modResults) {
+    const cat = String(m.category ?? 'Other')
     catMap.set(cat, (catMap.get(cat) ?? 0) + 1)
   }
   const catTotal = [...catMap.values()].reduce((a, b) => a + b, 0) || 1
@@ -94,8 +83,8 @@ const buildAnalyticsPayload = async (range: RangeKey) => {
   }))
 
   const sev: Record<string, number> = { low: 0, medium: 0, high: 0, critical: 0 }
-  for (const d of modSnap.docs) {
-    const s = String(d.data()['severity'] ?? 'low')
+  for (const m of modResults) {
+    const s = String(m.severity ?? 'low')
     if (s in sev) {
       sev[s] += 1
     }
@@ -134,11 +123,7 @@ export const getOverview = async (req: Request, res: Response): Promise<void> =>
     const since = startForRange(range)
     const stats = await moderationRepo.getStats(since)
 
-    const appealsSnap = await db
-      .collection('appeals')
-      .where('submittedAt', '>=', since)
-      .count()
-      .get()
+    const appealCount = await analyticsRepo.getAppealCountInRange(since)
 
     const { timeSeries, categoryBreakdown, severityDistribution } =
       await buildAnalyticsPayload(range)
@@ -147,7 +132,7 @@ export const getOverview = async (req: Request, res: Response): Promise<void> =>
       range,
       stats: {
         ...stats,
-        appealsInRange: appealsSnap.data().count,
+        appealsInRange: appealCount,
       },
       summary: {
         timeSeriesPoints: timeSeries.length,
@@ -200,4 +185,5 @@ export const getCategories = async (req: Request, res: Response): Promise<void> 
     })
   }
 }
+
 

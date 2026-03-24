@@ -183,6 +183,18 @@ export const patchRule = async (req: Request, res: Response): Promise<void> => {
       })
       return
     }
+    const allowedKeys = ['isActive', 'name', 'conditions', 'action', 'priority']
+    const keys = Object.keys(body)
+    const invalidKeys = keys.filter((k) => !allowedKeys.includes(k))
+    if (invalidKeys.length > 0) {
+      res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: `Invalid fields: ${invalidKeys.join(', ')}`,
+        statusCode: 400,
+      })
+      return
+    }
+
     const patch: Record<string, unknown> = {}
     if (typeof body.isActive === 'boolean') {
       patch['isActive'] = body.isActive
@@ -322,34 +334,28 @@ export const listAuditLogs = async (req: Request, res: Response): Promise<void> 
       page?: number
       limit?: number
     }
-    const base: Query = db.collection('audit_logs').orderBy('timestamp', 'desc')
-    const snap = await base.limit(2000).get()
-    const fromDate = q.from ? new Date(q.from).getTime() : null
-    const toDate = q.to ? new Date(q.to).getTime() : null
+    let base: Query = db.collection('audit_logs')
 
-    let rows = snap.docs.map((d) => d.data())
     if (q.actorId) {
-      rows = rows.filter((r) => r['actorId'] === q.actorId)
+      base = base.where('actorId', '==', q.actorId)
     }
     if (q.action) {
-      rows = rows.filter((r) => r['action'] === q.action)
+      base = base.where('action', '==', q.action)
     }
     if (q.targetType) {
-      rows = rows.filter((r) => r['targetType'] === q.targetType)
+      base = base.where('targetType', '==', q.targetType)
     }
-    if (fromDate !== null || toDate !== null) {
-      rows = rows.filter((r) => {
-        const ts = r['timestamp'] as { toMillis?: () => number } | undefined
-        const t = ts && typeof ts.toMillis === 'function' ? ts.toMillis() : 0
-        if (fromDate !== null && t < fromDate) {
-          return false
-        }
-        if (toDate !== null && t > toDate) {
-          return false
-        }
-        return true
-      })
+    if (q.from) {
+      base = base.where('timestamp', '>=', new Date(q.from))
     }
+    if (q.to) {
+      base = base.where('timestamp', '<=', new Date(q.to))
+    }
+
+    base = base.orderBy('timestamp', 'desc')
+    const snap = await base.limit(2000).get()
+
+    let rows = snap.docs.map((d) => d.data())
 
     const total = rows.length
     const page = Math.max(1, q.page ?? 1)

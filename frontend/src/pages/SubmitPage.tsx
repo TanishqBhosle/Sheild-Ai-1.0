@@ -3,7 +3,7 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
-import { firebaseDb } from '../config/firebase'
+import { fbDb } from '../config/firebase'
 import { useContent } from '../hooks/useContent'
 import { uploadMedia } from '../services/upload.service'
 import { createAppeal } from '../services/appeals.service'
@@ -59,7 +59,7 @@ export default function SubmitPage() {
     if (!contentId) {
       return undefined
     }
-    return onSnapshot(doc(firebaseDb, 'content', contentId), (snap) => {
+    return onSnapshot(doc(fbDb, 'content', contentId), (snap) => {
       const d = snap.data() as ContentDoc | undefined
       if (d) {
         setStatus(d.status)

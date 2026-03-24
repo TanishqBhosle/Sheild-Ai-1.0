@@ -1,6 +1,6 @@
 import type * as admin from 'firebase-admin'
 import type { Query } from 'firebase-admin/firestore'
-import { db } from '../config/firebase'
+import { db, FieldValue } from '../config/firebase'
 import type {
   DecisionType,
   ModerationResult,
@@ -28,9 +28,9 @@ export const moderationRepo = {
     data: Omit<ModerationResult, 'createdAt' | 'reviewedAt'> & {
       createdAt: admin.firestore.FieldValue | admin.firestore.Timestamp
       reviewedAt:
-        | admin.firestore.FieldValue
-        | admin.firestore.Timestamp
-        | null
+      | admin.firestore.FieldValue
+      | admin.firestore.Timestamp
+      | null
     }
   ): Promise<void> {
     await db.collection(RESULTS).doc(data.resultId).set(data)
@@ -102,7 +102,6 @@ export const moderationRepo = {
     patch: {
       finalDecision: DecisionType
       reviewedBy: string
-      reviewedAt: admin.firestore.FieldValue
       notes: string | null
       isOverride: boolean
     }
@@ -116,7 +115,10 @@ export const moderationRepo = {
     if (snap.empty) {
       return
     }
-    await snap.docs[0].ref.update(patch)
+    await snap.docs[0].ref.update({
+      ...patch,
+      reviewedAt: FieldValue.serverTimestamp(),
+    })
   },
 
   async getActiveRules(): Promise<ModerationRule[]> {
@@ -193,6 +195,32 @@ export const moderationRepo = {
       overrides,
       reviewed,
     }
+  },
+
+  async getAppealStats(): Promise<{ total: number; overturned: number }> {
+    const totalSnap = await db
+      .collection('appeals')
+      .where('status', 'in', ['overturned', 'upheld'])
+      .count()
+      .get()
+    const overturnedSnap = await db
+      .collection('appeals')
+      .where('status', '==', 'overturned')
+      .count()
+      .get()
+    return {
+      total: totalSnap.data().count,
+      overturned: overturnedSnap.data().count,
+    }
+  },
+
+  async getResultsForLatency(since: Date, limit: number = 200): Promise<ModerationResult[]> {
+    const snap = await db
+      .collection(RESULTS)
+      .where('createdAt', '>=', since)
+      .limit(limit)
+      .get()
+    return snap.docs.map(d => d.data() as ModerationResult)
   },
 
   async createRule(

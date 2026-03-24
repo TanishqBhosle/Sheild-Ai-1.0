@@ -13,16 +13,16 @@ const firebaseConfig = {
 }
 
 const app = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig)
-export const firebaseAuth = getAuth(app)
-export const firebaseDb = getFirestore(app)
-export const firebaseStorage = getStorage(app)
+export const fbAuth = getAuth(app)
+export const fbDb = getFirestore(app)
+export const fbStorage = getStorage(app)
 
 if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATOR === 'true') {
-  connectAuthEmulator(firebaseAuth, 'http://127.0.0.1:9099', {
+  connectAuthEmulator(fbAuth, 'http://127.0.0.1:9099', {
     disableWarnings: true,
   })
-  connectFirestoreEmulator(firebaseDb, 'localhost', 8080)
-  connectStorageEmulator(firebaseStorage, 'localhost', 9199)
+  connectFirestoreEmulator(fbDb, 'localhost', 8080)
+  connectStorageEmulator(fbStorage, 'localhost', 9199)
 }
 
 export default app

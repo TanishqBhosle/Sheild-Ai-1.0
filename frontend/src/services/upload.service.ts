@@ -1,5 +1,5 @@
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { firebaseStorage } from '../config/firebase'
+import { fbStorage } from '../config/firebase'
 import type { ContentType } from '../types'
 
 const folderForType = (type: ContentType): 'images' | 'audio' | 'video' => {
@@ -20,10 +20,10 @@ export const uploadMedia = async (
   const folder = folderForType(type)
   const name = `${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
   const path = `uploads/${folder}/${uid}/${name}`
-  const r = ref(firebaseStorage, path)
+  const r = ref(fbStorage, path)
   await uploadBytes(r, file, { contentType: file.type })
   await getDownloadURL(r)
-  const bucket = firebaseStorage.app.options.storageBucket
+  const bucket = fbStorage.app.options.storageBucket
   const gsUri = `gs://${bucket}/${path}`
   return { storagePath: path, gsUri }
 }

@@ -23,7 +23,12 @@ export const contentListQuerySchema = z.object({
 })
 
 export const feedbackBodySchema = z.object({
-  correctLabel: z.string().min(1),
+  correctLabel: z.enum([
+    DECISION_TYPES[0],
+    DECISION_TYPES[1],
+    DECISION_TYPES[2],
+    DECISION_TYPES[3],
+  ]),
   notes: z.string().optional(),
 })
 

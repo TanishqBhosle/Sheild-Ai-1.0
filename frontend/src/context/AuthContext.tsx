@@ -15,7 +15,7 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth'
-import { firebaseAuth } from '../config/firebase'
+import { fbAuth } from '../config/firebase'
 import type { UserRole } from '../types'
 
 interface AuthState {
@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   )
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+    const unsubscribe = onAuthStateChanged(fbAuth, async (user) => {
       if (user) {
         const tokenResult = await user.getIdTokenResult()
         const role = (tokenResult.claims['role'] as UserRole) ?? 'user'
@@ -57,13 +57,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [])
 
   const signInEmail = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(firebaseAuth, email, password)
+    await signInWithEmailAndPassword(fbAuth, email, password)
   }
 
   const signInGoogle = async () => {
     const provider = new GoogleAuthProvider()
     provider.setCustomParameters({ prompt: 'select_account' })
-    await signInWithPopup(firebaseAuth, provider)
+    await signInWithPopup(fbAuth, provider)
   }
 
   const signUp = async (
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     displayName: string
   ) => {
     const cred = await createUserWithEmailAndPassword(
-      firebaseAuth,
+      fbAuth,
       email,
       password
     )
@@ -81,7 +81,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const logout = async () => {
-    await signOut(firebaseAuth)
+    await signOut(fbAuth)
     window.location.replace('/login')
   }
 

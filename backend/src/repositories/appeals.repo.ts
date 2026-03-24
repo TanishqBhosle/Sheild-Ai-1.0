@@ -1,6 +1,6 @@
 import type * as admin from 'firebase-admin'
 import type { Query } from 'firebase-admin/firestore'
-import { db } from '../config/firebase'
+import { db, FieldValue } from '../config/firebase'
 import type { AppealDoc, AppealStatus } from '../types'
 
 const COLLECTION = 'appeals'
@@ -13,11 +13,12 @@ export interface AppealListFilters {
 
 export const appealsRepo = {
   async create(
-    doc: Omit<AppealDoc, 'submittedAt'> & {
-      submittedAt: admin.firestore.FieldValue
-    }
+    doc: Omit<AppealDoc, 'submittedAt'>
   ): Promise<void> {
-    await db.collection(COLLECTION).doc(doc.appealId).set(doc)
+    await db.collection(COLLECTION).doc(doc.appealId).set({
+      ...doc,
+      submittedAt: FieldValue.serverTimestamp(),
+    })
   },
 
   async findById(appealId: string): Promise<AppealDoc | null> {
@@ -68,6 +69,10 @@ export const appealsRepo = {
     appealId: string,
     patch: Record<string, unknown>
   ): Promise<void> {
-    await db.collection(COLLECTION).doc(appealId).update(patch)
+    const finalPatch = { ...patch }
+    if ('resolvedAt' in finalPatch && finalPatch['resolvedAt'] === 'AUTO') {
+      finalPatch['resolvedAt'] = FieldValue.serverTimestamp()
+    }
+    await db.collection(COLLECTION).doc(appealId).update(finalPatch)
   },
 }
