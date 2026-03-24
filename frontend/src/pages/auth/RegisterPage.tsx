@@ -6,7 +6,6 @@ import { motion } from 'framer-motion'
 import { Shield, Check } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
-import { setUserRole } from '../../services/auth.service'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { ROUTES } from '../../constants'
@@ -26,6 +25,19 @@ const schema = z
 
 type Form = z.infer<typeof schema>
 
+const mapFirebaseError = (code: string, e: any): string => {
+  if (code === 'auth/email-already-in-use') {
+    return 'An account with this email already exists'
+  }
+  if (code === 'auth/weak-password') {
+    return 'Password is too weak'
+  }
+  if (code === 'auth/invalid-email') {
+    return 'Invalid email address'
+  }
+  return e?.message || 'Registration failed'
+}
+
 export default function RegisterPage() {
   const { signUp } = useAuth()
   const nav = useNavigate()
@@ -38,11 +50,15 @@ export default function RegisterPage() {
     setErr(null)
     try {
       const user = await signUp(data.email, data.password, data.displayName)
-      await setUserRole(user.uid, 'user')
       await user.getIdToken(true)
       nav(ROUTES.home)
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Registration failed')
+    } catch (e: any) {
+      console.error('Registration error:', e)
+      const code =
+        e && typeof e === 'object' && 'code' in e
+          ? String((e as { code: string }).code)
+          : ''
+      setErr(mapFirebaseError(code, e))
     }
   }
 
@@ -83,17 +99,28 @@ export default function RegisterPage() {
           onSubmit={handleSubmit(onSubmit)}
           className="mx-auto mt-8 w-full max-w-md space-y-3"
         >
-          <Input placeholder="Display name" {...register('displayName')} />
-          <Input type="email" placeholder="Email" {...register('email')} />
-          <Input type="password" placeholder="Password" {...register('password')} />
-          <Input
-            type="password"
-            placeholder="Confirm password"
-            {...register('confirm')}
-          />
-          {formState.errors.confirm ? (
-            <p className="text-xs text-red-400">{formState.errors.confirm.message}</p>
-          ) : null}
+          <div>
+            <Input placeholder="Display name" {...register('displayName')} />
+            {formState.errors.displayName && <p className="text-xs text-red-400 mt-1">{formState.errors.displayName.message}</p>}
+          </div>
+          <div>
+            <Input type="email" placeholder="Email" {...register('email')} />
+            {formState.errors.email && <p className="text-xs text-red-400 mt-1">{formState.errors.email.message}</p>}
+          </div>
+          <div>
+            <Input type="password" placeholder="Password" {...register('password')} />
+            {formState.errors.password && <p className="text-xs text-red-400 mt-1">{formState.errors.password.message}</p>}
+          </div>
+          <div>
+            <Input
+              type="password"
+              placeholder="Confirm password"
+              {...register('confirm')}
+            />
+            {formState.errors.confirm && (
+              <p className="text-xs text-red-400 mt-1">{formState.errors.confirm.message}</p>
+            )}
+          </div>
           {err ? <p className="text-sm text-red-400">{err}</p> : null}
           <Button
             type="submit"

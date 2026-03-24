@@ -17,9 +17,9 @@ const schema = z.object({
 
 type Form = z.infer<typeof schema>
 
-const mapFirebaseError = (code: string): string => {
-  if (code === 'auth/user-not-found') {
-    return 'No account found with this email'
+const mapFirebaseError = (code: string, e: any): string => {
+  if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+    return 'Invalid email or password'
   }
   if (code === 'auth/wrong-password') {
     return 'Incorrect password'
@@ -27,7 +27,7 @@ const mapFirebaseError = (code: string): string => {
   if (code === 'auth/too-many-requests') {
     return 'Too many attempts. Try later.'
   }
-  return 'Sign in failed'
+  return e?.message || 'Sign in failed'
 }
 
 export default function LoginPage() {
@@ -40,18 +40,35 @@ export default function LoginPage() {
     resolver: zodResolver(schema),
   })
 
+  const onGoogleSignIn = async () => {
+    setErr(null)
+    try {
+      await signInGoogle()
+      const to = loc.state?.from?.pathname ?? ROUTES.home
+      nav(to, { replace: true })
+    } catch (e: any) {
+      console.error('Google Sign In error:', e)
+      const code =
+        e && typeof e === 'object' && 'code' in e
+          ? String((e as { code: string }).code)
+          : ''
+      setErr(mapFirebaseError(code, e))
+    }
+  }
+
   const onSubmit = async (data: Form) => {
     setErr(null)
     try {
       await signInEmail(data.email, data.password)
       const to = loc.state?.from?.pathname ?? ROUTES.home
       nav(to, { replace: true })
-    } catch (e) {
+    } catch (e: any) {
+      console.error('Email Sign In error:', e)
       const code =
         e && typeof e === 'object' && 'code' in e
           ? String((e as { code: string }).code)
           : ''
-      setErr(mapFirebaseError(code))
+      setErr(mapFirebaseError(code, e))
     }
   }
 
@@ -93,20 +110,26 @@ export default function LoginPage() {
           onSubmit={handleSubmit(onSubmit)}
           className="mx-auto mt-8 w-full max-w-md space-y-4"
         >
-          <Input type="email" placeholder="Email" {...register('email')} />
-          <div className="relative">
-            <Input
-              type={showPw ? 'text' : 'password'}
-              placeholder="Password"
-              {...register('password')}
-            />
-            <button
-              type="button"
-              className="absolute right-2 top-2 text-xs text-ink-muted"
-              onClick={() => setShowPw((s) => !s)}
-            >
-              {showPw ? 'Hide' : 'Show'}
-            </button>
+          <div>
+            <Input type="email" placeholder="Email" {...register('email')} />
+            {formState.errors.email && <p className="text-xs text-red-400 mt-1">{formState.errors.email.message}</p>}
+          </div>
+          <div>
+            <div className="relative">
+              <Input
+                type={showPw ? 'text' : 'password'}
+                placeholder="Password"
+                {...register('password')}
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-2 text-xs text-ink-muted"
+                onClick={() => setShowPw((s) => !s)}
+              >
+                {showPw ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {formState.errors.password && <p className="text-xs text-red-400 mt-1">{formState.errors.password.message}</p>}
           </div>
           {err ? (
             <motion.p
@@ -132,7 +155,7 @@ export default function LoginPage() {
             type="button"
             variant="secondary"
             className="w-full bg-white text-black hover:bg-zinc-100"
-            onClick={() => void signInGoogle().then(() => nav(ROUTES.home))}
+            onClick={() => void onGoogleSignIn()}
           >
             Google
           </Button>
