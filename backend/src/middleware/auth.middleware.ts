@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { auth } from '../config/firebase'
-import { UnauthorizedError } from '../utils/errors'
 import type { UserRole } from '../types'
+import { usersRepo } from '../repositories/users.repo'
 
 export const authenticate = async (
   req: Request,
@@ -11,7 +11,12 @@ export const authenticate = async (
   try {
     const header = req.headers.authorization
     if (!header?.startsWith('Bearer ')) {
-      throw new UnauthorizedError('Missing or invalid Authorization header')
+      res.status(401).json({
+        error: 'UNAUTHORIZED',
+        message: 'Missing Authorization: Bearer <token> header',
+        statusCode: 401,
+      })
+      return
     }
 
     const token = header.slice(7)
@@ -23,10 +28,20 @@ export const authenticate = async (
         ? roleClaim
         : 'user'
 
+    // Custom claims can lag behind (e.g., immediately after role updates).
+    // If the token says `user`, fall back to the stored Firestore role.
+    let effectiveRole = role
+    if (role === 'user') {
+      const userDoc = await usersRepo.findByUid(decoded.uid)
+      if (userDoc?.role === 'moderator' || userDoc?.role === 'admin') {
+        effectiveRole = userDoc.role
+      }
+    }
+
     req.user = {
       uid: decoded.uid,
       email: decoded.email ?? '',
-      role,
+      role: effectiveRole,
     }
 
     next()

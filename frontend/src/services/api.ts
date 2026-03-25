@@ -10,7 +10,9 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
   const user = fbAuth.currentUser
   if (user) {
-    const token = await user.getIdToken(false)
+    // Force-refresh so custom claims like `role` are up to date.
+    // Without this, role changes can take effect only after the token naturally refreshes.
+    const token = await user.getIdToken(true)
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
