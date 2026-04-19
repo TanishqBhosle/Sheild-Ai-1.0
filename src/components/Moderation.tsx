@@ -1020,12 +1020,12 @@ export const Moderation = () => {
                 <div className="flex-1 overflow-y-auto p-8 space-y-8">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Flagged {selectedItem.type === 'text' ? 'Content' : selectedItem.type.charAt(0).toUpperCase() + selectedItem.type.slice(1)}</h4>
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Flagged {(!selectedItem.type || selectedItem.type === 'text') ? 'Content' : selectedItem.type.charAt(0).toUpperCase() + selectedItem.type.slice(1)}</h4>
                       <Badge variant="neutral" className="text-[10px] items-center flex gap-1 bg-slate-100 dark:bg-slate-800 border-none">
-                        {selectedItem.type === 'text' && <Type className="w-3 h-3" />}
+                        {(!selectedItem.type || selectedItem.type === 'text') && <Type className="w-3 h-3" />}
                         {selectedItem.type === 'image' && <ImageIcon className="w-3 h-3" />}
                         {selectedItem.type === 'video' && <VideoIcon className="w-3 h-3" />}
-                        {selectedItem.type.toUpperCase()}
+                        {(selectedItem.type || 'text').toUpperCase()}
                       </Badge>
                     </div>
 
