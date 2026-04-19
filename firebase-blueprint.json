@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the Aegis AI platform.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique ID of the user." },
+        "email": { "type": "string", "format": "email", "description": "The email address of the user." },
+        "role": { "type": "string", "enum": ["user", "moderator", "admin"], "description": "The role of the user." },
+        "tenantId": { "type": "string", "description": "The tenant ID the user belongs to." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user was created." }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "ContentSubmission": {
+      "title": "Content Submission",
+      "description": "A piece of content submitted for moderation.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The ID of the user who submitted the content." },
+        "content": { "type": "string", "description": "The actual content text or URL." },
+        "contentType": { "type": "string", "enum": ["text", "image", "video"], "description": "The type of content." },
+        "status": { "type": "string", "enum": ["processing", "approved", "flagged", "rejected"], "description": "The moderation status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the content was submitted." },
+        "severityScore": { "type": "integer", "description": "AI-assigned severity score (1-4)." },
+        "confidenceScore": { "type": "number", "description": "AI confidence score (0-1)." },
+        "explanation": { "type": "string", "description": "AI explanation for the decision." },
+        "flaggedPhrases": { "type": "array", "description": "Phrases that triggered flags." },
+        "moderatorFeedback": {
+          "type": "object",
+          "description": "Feedback from a human moderator about the AI's flagging accuracy.",
+          "properties": {
+            "accuracy": { "type": "string", "enum": ["correct", "incorrect", "misclassified"], "description": "Moderator's assessment of AI accuracy." },
+            "note": { "type": "string", "description": "Optional details about the feedback." },
+            "submittedBy": { "type": "string", "description": "The UID of the moderator." },
+            "submittedAt": { "type": "string", "description": "ISO timestamp of when feedback was provided." }
+          }
+        }
+      },
+      "required": ["userId", "content", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data."
+    },
+    "/content_submissions/{submissionId}": {
+      "schema": "ContentSubmission",
+      "description": "Moderation submissions and results."
+    }
+  }
+}
