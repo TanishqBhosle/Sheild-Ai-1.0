@@ -1,5 +1,5 @@
 import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from "react";
-import { User, onAuthStateChanged, signOut } from "firebase/auth";
+import { User, onIdTokenChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase";
 
 export type PanelRole = "user" | "moderator" | "admin";
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [claims, setClaims] = useState<Claims | null>(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (nextUser) => {
+    const unsub = onIdTokenChanged(auth, async (nextUser) => {
       setUser(nextUser);
       if (!nextUser) {
         setClaims(null);
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const tokenResult = await nextUser.getIdTokenResult(true);
+      const tokenResult = await nextUser.getIdTokenResult();
       setClaims(parseClaims(tokenResult.claims as Record<string, unknown>));
       setIsReady(true);
     });
