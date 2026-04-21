@@ -1,17 +1,29 @@
 # dependencies
 node_modules/
+frontend/node_modules/
+functions/node_modules/
 
 # environment files
 .env
 .env.*
 !.env.example
+frontend/.env
+frontend/.env.*
+functions/.env
+functions/.env.*
 
 # build output
 dist/
 build/
+coverage/
 .firebase/
+firebase-debug.log*
+frontend/dist/
+functions/lib/
+*.tsbuildinfo
 
 # logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -21,3 +33,4 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 .vscode/
+.idea/
