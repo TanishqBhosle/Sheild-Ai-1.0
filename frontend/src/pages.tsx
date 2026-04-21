@@ -1,7 +1,8 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { FirebaseError } from "firebase/app";
 import {
   createAdminApiKey,
   createPolicy,
@@ -14,7 +15,8 @@ import {
   rotateAdminApiKey,
   reviewModeration,
   updateAdminApiKey,
-  revokeAdminApiKey
+  revokeAdminApiKey,
+  signupUser
 } from "./api";
 import { auth, db } from "./firebase";
 import { useAuth } from "./auth";
@@ -90,6 +92,109 @@ function formatExpiry(value: unknown) {
   return String(value);
 }
 
+function getLoginErrorMessage(error: unknown): string {
+  if (!(error instanceof FirebaseError)) {
+    return error instanceof Error ? error.message : "Login failed";
+  }
+  switch (error.code) {
+    case "auth/invalid-credential":
+    case "auth/invalid-login-credentials":
+      return "Invalid email or password.";
+    case "auth/user-not-found":
+      return "No account found for this email.";
+    case "auth/wrong-password":
+      return "Incorrect password.";
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+    case "auth/user-disabled":
+      return "This account is disabled.";
+    case "auth/operation-not-allowed":
+      return "Email/password login is not enabled in Firebase Auth.";
+    case "auth/too-many-requests":
+      return "Too many login attempts. Please wait and try again.";
+    default:
+      return "Login failed. Check Firebase Auth settings and credentials.";
+  }
+}
+
+export function SignupPage() {
+  const navigate = useNavigate();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("user");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name || !email || !password || !role) {
+      setError("All fields are required.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      // Wait for backend to assign claims and store data
+      const result = await signupUser(credential.user, { name, role });
+      
+      // Force refresh the ID token so frontend gets the new claims
+      await credential.user.getIdToken(true);
+      
+      navigate(`/${result.role}`, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Signup failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
+      <form onSubmit={onSubmit} className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <h1 className="text-xl font-semibold text-indigo-300">Create Account</h1>
+        <p className="mt-2 text-sm text-slate-300">Sign up to access Aegis AI.</p>
+        <div className="mt-5 space-y-3">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Full Name"
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+          />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+          />
+          <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+            <option value="user">User</option>
+            <option value="moderator">Moderator</option>
+            <option value="admin">Admin</option>
+          </select>
+          {error ? <p className="text-xs text-red-400">{error}</p> : null}
+          <button type="submit" disabled={loading} className="w-full rounded bg-indigo-500 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            {loading ? "Signing up..." : "Sign Up"}
+          </button>
+        </div>
+        <p className="mt-4 text-center text-xs text-slate-400">
+          Already have an account? <Link to="/login" className="text-indigo-400 hover:underline">Log in</Link>
+        </p>
+      </form>
+    </div>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -108,8 +213,7 @@ export function LoginPage() {
       }
       navigate(`/${role}`, { replace: true });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Login failed";
-      setError(message);
+      setError(getLoginErrorMessage(err));
     }
   }
 
@@ -138,6 +242,9 @@ export function LoginPage() {
             Sign In
           </button>
         </div>
+        <p className="mt-4 text-center text-xs text-slate-400">
+          Don't have an account? <Link to="/signup" className="text-indigo-400 hover:underline">Sign up</Link>
+        </p>
       </form>
     </div>
   );
