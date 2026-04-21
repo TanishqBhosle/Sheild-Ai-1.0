@@ -8,7 +8,7 @@ export default defineConfig({
     proxy: {
       // Frontend uses /v1; proxy to local Functions endpoint for local E2E.
       "/v1": {
-        target: process.env.VITE_API_PROXY_TARGET || "http://127.0.0.1:5001/demo-aegis/us-central1/api",
+        target: process.env.VITE_API_PROXY_TARGET || "http://127.0.0.1:5001/aegis-ai-d9204/us-central1/api",
         changeOrigin: true
       }
     }
