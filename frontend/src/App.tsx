@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth";
-import { AdminPanelPage, LoginPage, ModeratorPanelPage, NotFoundPage, UnauthorizedPage, UserPanelPage } from "./pages";
+import { AdminPanelPage, LoginPage, SignupPage, ModeratorPanelPage, NotFoundPage, UnauthorizedPage, UserPanelPage } from "./pages";
 import { AuthGate, RedirectByRole, RequireLogin, RequireRole } from "./routes";
 
 export function App() {
@@ -9,6 +9,7 @@ export function App() {
       <Routes>
         <Route element={<AuthGate />}>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           <Route element={<RequireLogin />}>
             <Route path="/" element={<RedirectByRole />} />
