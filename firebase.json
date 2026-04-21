@@ -15,6 +15,10 @@
     ],
     "rewrites": [
       {
+        "source": "/v1/**",
+        "function": "api"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -26,5 +30,24 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "functions": {
+      "port": 5001
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    },
+    "storage": {
+      "port": 5002
+    },
+    "singleProjectMode": true
   }
 }

@@ -213,3 +213,36 @@ FIREBASE_PROJECT_ID=project_id
 - Add full charting suite and route-level dashboard pages.
 - Add scheduled weekly AI-accuracy rollups from feedback signals.
 - Expand automated tests (unit + integration + e2e).
+
+## QA Verification Steps
+
+Run these checks after setup to validate core platform stability:
+
+1. Build verification:
+   - `npm run build`
+2. Firebase hosting/API routing verification:
+   - Confirm `firebase.json` has rewrite for `/v1/**` to Cloud Function `api`.
+3. Role flow verification:
+   - Login with each role-claimed user (`user`, `moderator`, `admin`).
+   - Confirm redirect lands on matching panel.
+   - Confirm direct navigation to other role routes redirects back to own role panel.
+4. API/RBAC verification (authenticated requests):
+   - `POST /v1/moderate` with valid API key.
+   - `GET /v1/results/:contentId` and `GET /v1/results`.
+   - `POST /v1/policies` and `PATCH /v1/policies/:policyId` as admin only.
+   - `GET /v1/moderator/queue` and `POST /v1/moderator/review/:contentId` as moderator only.
+   - `GET /v1/admin/api-keys` and API key lifecycle endpoints as admin only.
+5. Tenant isolation verification:
+   - Attempt cross-tenant key actions (`orgId` mismatch or foreign `keyId`) and confirm `403`.
+6. Real-time verification:
+   - User panel history updates live from Firestore content collection.
+   - Moderator queue updates live when `needsHumanReview=true` appears.
+7. Emulator-backed runtime verification:
+   - Start emulators: `firebase emulators:start --config firebase.json --only "auth,firestore,functions,storage"`
+   - Run live QA suite: `node scripts/runtime-qa.mjs`
+
+## Known Issues
+
+- AI moderation currently uses `mockModeration` heuristics rather than live LLM calls.
+- Async media moderation currently returns queued state but does not yet include a background worker to complete processing.
+- Frontend production bundle currently exceeds 500 kB chunk warning; functionality is stable but code-splitting is pending.

@@ -81,6 +81,22 @@ function requireRole(...roles: Role[]) {
   };
 }
 
+function ensureAdminScope(req: AegisReq, targetOrgId: unknown, res: Response): string | null {
+  const actorOrgId = req.orgId || "";
+  const candidate = Array.isArray(targetOrgId) ? targetOrgId[0] : targetOrgId;
+  const normalizedTarget = typeof candidate === "string" && candidate ? candidate : actorOrgId;
+  if (!normalizedTarget) {
+    res.status(400).json({ error: "orgId is required" });
+    return null;
+  }
+  // Tenant admins can only act within their own organization.
+  if (normalizedTarget !== actorOrgId) {
+    res.status(403).json({ error: "Cross-tenant access denied" });
+    return null;
+  }
+  return normalizedTarget;
+}
+
 async function enforceRateLimit(req: AegisReq, res: Response, next: NextFunction) {
   const orgId = req.orgId!;
   const orgDoc = await db.collection("organizations").doc(orgId).get();
@@ -105,8 +121,9 @@ function mockModeration(text: string, type: ContentType): { decision: Decision; 
   const normalized = text.toLowerCase();
   const severe = ["kill", "terror", "hate", "abuse"].some((x) => normalized.includes(x));
   const spam = ["buy now", "free money", "click here"].some((x) => normalized.includes(x));
+  const uncertain = ["maybe", "unclear", "context missing", "not sure"].some((x) => normalized.includes(x));
   const severity = severe ? 92 : spam ? 42 : 12;
-  const confidence = severe ? 0.91 : spam ? 0.79 : 0.96;
+  const confidence = uncertain ? 0.48 : severe ? 0.91 : spam ? 0.79 : 0.96;
   const decision: Decision = confidence < 0.6 ? "needs_human_review" : severity > 80 ? "rejected" : confidence <= 0.85 ? "flagged" : "approved";
   return {
     decision,
@@ -147,7 +164,8 @@ app.post("/v1/moderate", authApiKey, enforceRateLimit, async (req: AegisReq, res
   const { type, text, mediaUrl, externalId, policyId, metadata, async } = req.body;
   const orgId = req.orgId!;
   if (!["text", "image", "audio", "video"].includes(type)) return res.status(400).json({ error: "Invalid type" });
-  if (!text && !mediaUrl) return res.status(400).json({ error: "Either text or mediaUrl is required" });
+  if (type === "text" && (!text || typeof text !== "string" || !text.trim())) return res.status(400).json({ error: "text is required for type=text" });
+  if (type !== "text" && (!mediaUrl || typeof mediaUrl !== "string")) return res.status(400).json({ error: "mediaUrl is required for media content" });
   const payloadHash = sha256(`${type}:${text || ""}:${mediaUrl || ""}:${policyId || ""}`);
   const cacheSnap = await db.collection("organizations").doc(orgId).collection("content").where("contentHash", "==", payloadHash).where("createdAt", ">", Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000)).limit(1).get();
   if (!cacheSnap.empty) {
@@ -243,7 +261,9 @@ app.patch("/v1/policies/:policyId", authUser, requireRole("admin"), async (req: 
   const orgId = req.orgId!;
   const policyId = String(req.params.policyId || "");
   const ref = db.collection("organizations").doc(orgId).collection("policies").doc(policyId);
-  const oldData = (await ref.get()).data();
+  const existing = await ref.get();
+  if (!existing.exists) return res.status(404).json({ error: "Policy not found" });
+  const oldData = existing.data();
   await ref.set({ ...req.body, version: FieldValue.increment(1), updatedAt: Timestamp.now() }, { merge: true });
   await writeAudit(orgId, "user", "policy.update", "policy", ref.id, oldData, req.body);
   res.status(200).json({ policyId: ref.id, updated: true });
@@ -279,7 +299,10 @@ app.post("/v1/moderator/review/:contentId", authUser, requireRole("moderator"), 
   const orgId = req.orgId!;
   const contentId = String(req.params.contentId || "");
   const { decision, reason } = req.body;
+  if (decision !== "approved" && decision !== "rejected") return res.status(400).json({ error: "Invalid decision" });
   const resultRef = db.collection("organizations").doc(orgId).collection("moderation_results").doc(contentId);
+  const resultDoc = await resultRef.get();
+  if (!resultDoc.exists) return res.status(404).json({ error: "Moderation result not found" });
   await resultRef.set({ overriddenDecision: decision, overrideReason: reason || null, reviewedAt: Timestamp.now(), needsHumanReview: false }, { merge: true });
   await db.collection("organizations").doc(orgId).collection("content").doc(contentId).set({ status: "completed", updatedAt: Timestamp.now() }, { merge: true });
   await db.collection("organizations").doc(orgId).collection("feedback_signals").add({ orgId, contentId, aiDecision: "unknown", humanDecision: decision, delta: 1, moderatorId: "user", createdAt: Timestamp.now() });
@@ -295,20 +318,24 @@ app.get("/v1/analytics/overview", authUser, requireRole("admin"), async (req: Ae
   res.status(200).json({ total: rows.length, rejected, flagged, aiAccuracy: 94.2 });
 });
 
-app.get("/v1/admin/organizations", authUser, requireRole("admin"), async (_req: AegisReq, res: Response) => {
-  const snap = await db.collection("organizations").limit(200).get();
-  res.status(200).json({ organizations: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) });
+app.get("/v1/admin/organizations", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+  const orgId = req.orgId!;
+  const orgDoc = await db.collection("organizations").doc(orgId).get();
+  if (!orgDoc.exists) return res.status(404).json({ error: "Organization not found" });
+  res.status(200).json({ organizations: [{ id: orgDoc.id, ...orgDoc.data() }] });
 });
 
 app.post("/v1/admin/organizations/:orgId/suspend", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
-  const orgId = String(req.params.orgId || "");
+  const orgId = ensureAdminScope(req, req.params.orgId, res);
+  if (!orgId) return;
   await db.collection("organizations").doc(orgId).set({ status: "suspended", updatedAt: Timestamp.now() }, { merge: true });
   res.status(200).json({ suspended: true });
 });
 
 app.get("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
-  const orgId = String(req.query.orgId || req.orgId || "");
-  if (!orgId) return res.status(400).json({ error: "orgId is required" });
+  const queryOrgId = Array.isArray(req.query.orgId) ? req.query.orgId[0] : req.query.orgId;
+  const orgId = ensureAdminScope(req, queryOrgId, res);
+  if (!orgId) return;
   const snap = await db.collection("api_keys").where("orgId", "==", orgId).orderBy("createdAt", "desc").limit(100).get();
   res.status(200).json({
     keys: snap.docs.map((doc: any) => {
@@ -328,14 +355,15 @@ app.get("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: AegisR
 });
 
 app.post("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
-  const orgId = String(req.body.orgId || req.orgId || "");
-  if (!orgId) return res.status(400).json({ error: "orgId is required" });
+  const orgId = ensureAdminScope(req, req.body.orgId as string | undefined, res);
+  if (!orgId) return;
   const label = String(req.body.label || "default");
   const rawKey = `aegis_${orgId}_${crypto.randomBytes(24).toString("hex")}`;
   const keyHash = sha256(rawKey);
   const now = Timestamp.now();
-  const expiresAt = parseExpiry(req.body.expiresAt);
-  if (expiresAt === undefined) return res.status(400).json({ error: "expiresAt must be a valid future ISO date or null" });
+  const expiresAtInput = req.body.expiresAt;
+  const expiresAt = expiresAtInput === undefined ? null : parseExpiry(expiresAtInput);
+  if (expiresAtInput !== undefined && expiresAt === undefined) return res.status(400).json({ error: "expiresAt must be a valid future ISO date or null" });
   const keyPreview = `${rawKey.slice(0, 10)}...${rawKey.slice(-6)}`;
   await db.collection("api_keys").doc(keyHash).set({
     orgId,
@@ -359,6 +387,7 @@ app.post("/v1/admin/api-keys/:keyId/revoke", authUser, requireRole("admin"), asy
   const doc = await ref.get();
   if (!doc.exists) return res.status(404).json({ error: "API key not found" });
   const before = doc.data() as any;
+  if (before.orgId !== req.orgId) return res.status(403).json({ error: "Cross-tenant access denied" });
   await ref.set({ isActive: false, revokedAt: Timestamp.now(), updatedAt: Timestamp.now() }, { merge: true });
   await writeAudit(before.orgId, "admin", "api_key.revoke", "api_key", keyId, before, { isActive: false });
   res.status(200).json({ revoked: true, keyId });
@@ -370,8 +399,10 @@ app.patch("/v1/admin/api-keys/:keyId", authUser, requireRole("admin"), async (re
   const doc = await ref.get();
   if (!doc.exists) return res.status(404).json({ error: "API key not found" });
   const before = doc.data() as any;
-  const expiresAt = parseExpiry(req.body.expiresAt);
-  if (expiresAt === undefined) return res.status(400).json({ error: "expiresAt must be a valid future ISO date or null" });
+  if (before.orgId !== req.orgId) return res.status(403).json({ error: "Cross-tenant access denied" });
+  const hasExpiresAtInput = Object.prototype.hasOwnProperty.call(req.body, "expiresAt");
+  const expiresAt = hasExpiresAtInput ? parseExpiry(req.body.expiresAt) : before.expiresAt;
+  if (hasExpiresAtInput && expiresAt === undefined) return res.status(400).json({ error: "expiresAt must be a valid future ISO date or null" });
   const label = req.body.label !== undefined ? String(req.body.label || "default") : before.label;
   await ref.set({ label, expiresAt, updatedAt: Timestamp.now() }, { merge: true });
   await writeAudit(before.orgId, "admin", "api_key.update", "api_key", keyId, before, { label, expiresAt });
@@ -384,10 +415,13 @@ app.post("/v1/admin/api-keys/:keyId/rotate", authUser, requireRole("admin"), asy
   const oldDoc = await oldRef.get();
   if (!oldDoc.exists) return res.status(404).json({ error: "API key not found" });
   const oldData = oldDoc.data() as any;
+  if (oldData.orgId !== req.orgId) return res.status(403).json({ error: "Cross-tenant access denied" });
   if (!oldData.isActive) return res.status(409).json({ error: "Cannot rotate inactive key" });
 
   const newLabel = String(req.body.label || `${oldData.label || "key"}-rotated`);
-  const newExpiresAt = parseExpiry(req.body.expiresAt ?? oldData.expiresAt?.toDate?.()?.toISOString() ?? null);
+  const hasExpiresAtInput = Object.prototype.hasOwnProperty.call(req.body, "expiresAt");
+  const existingExpiresIso = oldData.expiresAt?.toDate?.()?.toISOString() ?? null;
+  const newExpiresAt = parseExpiry(hasExpiresAtInput ? req.body.expiresAt : existingExpiresIso);
   if (newExpiresAt === undefined) return res.status(400).json({ error: "expiresAt must be a valid future ISO date or null" });
 
   const rawKey = `aegis_${oldData.orgId}_${crypto.randomBytes(24).toString("hex")}`;
