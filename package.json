@@ -10,5 +10,9 @@
     "dev": "npm run dev --workspace frontend",
     "build": "npm run build --workspace frontend && npm run build --workspace functions",
     "lint": "npm run lint --workspace frontend && npm run lint --workspace functions"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "dotenv": "^17.4.2"
   }
 }
