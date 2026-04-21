@@ -2,20 +2,55 @@ import crypto from "crypto";
 import cors from "cors";
 import express, { NextFunction, Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { z } from "zod";
 
 initializeApp();
 const db = getFirestore();
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const app = express();
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "15mb" }));
 app.use(cors({ origin: true }));
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.url} (path: ${req.path})`);
+  next();
+});
 
+// Types
 type Role = "user" | "moderator" | "admin" | "api_key";
 type ContentType = "text" | "image" | "audio" | "video";
 type Decision = "approved" | "rejected" | "flagged" | "needs_human_review";
 type AegisReq = Request & { orgId?: string; role?: Role; apiKeyHash?: string };
+
+// Validation Schemas
+const ModerateSchema = z.object({
+  type: z.enum(["text", "image", "audio", "video"]),
+  text: z.string().optional(),
+  mediaUrl: z.string().url().optional(),
+  externalId: z.string().optional(),
+  policyId: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+  async: z.boolean().optional(),
+  sizeMb: z.number().optional()
+}).refine(data => {
+  if (data.type === "text") return !!data.text;
+  return !!data.mediaUrl;
+}, { message: "text is required for type=text, otherwise mediaUrl is required" });
+
+const ReviewSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  reason: z.string().optional()
+});
+
+const PolicySchema = z.object({
+  name: z.string().min(3),
+  description: z.string().optional(),
+  severityThreshold: z.number().min(0).max(100)
+});
 
 const PLAN_LIMITS: Record<string, { perMinute: number; perMonth: number }> = {
   free: { perMinute: 60, perMonth: 1000 },
@@ -74,6 +109,64 @@ async function authUser(req: AegisReq, res: Response, next: NextFunction) {
   }
 }
 
+app.post("/auth/signup", async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) return res.status(401).json({ error: "Missing token" });
+
+  let uid, email;
+  try {
+    const decoded = await getAuth().verifyIdToken(token);
+    uid = decoded.uid;
+    email = decoded.email;
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid auth token" });
+  }
+
+  const { name, role, requestedOrgId } = req.body;
+  const orgId = requestedOrgId || "default-org";
+
+  let assignedRole: "user" | "moderator" | "admin" = "user";
+  
+  if (role === "admin" && (email === "admin@aegis.ai" || email?.endsWith("@aegis.ai"))) {
+    assignedRole = "admin";
+  } else if (role === "moderator" && (email === "mod@aegis.ai" || email?.endsWith("@aegis.ai"))) {
+    assignedRole = "moderator";
+  } else {
+    assignedRole = "user";
+  }
+
+  try {
+    await getAuth().setCustomUserClaims(uid, {
+      orgId,
+      role: assignedRole,
+      plan: "pro"
+    });
+
+    await db.collection("organizations").doc(orgId).collection("members").doc(uid).set({
+      uid,
+      name: name || "",
+      email: email || "",
+      role: assignedRole,
+      orgId,
+      createdAt: Timestamp.now()
+    });
+
+    await db.collection("organizations").doc(orgId).set({
+      status: "active",
+      plan: "pro", // Default plan for new orgs for now
+      createdAt: Timestamp.now()
+    }, { merge: true });
+
+    res.status(200).json({ success: true, role: assignedRole, orgId });
+  } catch (error) {
+    console.error("Signup error:", error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : "Failed to complete signup process."
+    });
+  }
+});
+
 function requireRole(...roles: Role[]) {
   return (req: AegisReq, res: Response, next: NextFunction) => {
     if (!req.role || !roles.includes(req.role)) return res.status(403).json({ error: "Insufficient role" });
@@ -117,26 +210,160 @@ async function enforceRateLimit(req: AegisReq, res: Response, next: NextFunction
   next();
 }
 
-function mockModeration(text: string, type: ContentType): { decision: Decision; severity: number; confidence: number; categories: Record<string, any>; explanation: string } {
-  const normalized = text.toLowerCase();
-  const severe = ["kill", "terror", "hate", "abuse"].some((x) => normalized.includes(x));
-  const spam = ["buy now", "free money", "click here"].some((x) => normalized.includes(x));
-  const uncertain = ["maybe", "unclear", "context missing", "not sure"].some((x) => normalized.includes(x));
-  const severity = severe ? 92 : spam ? 42 : 12;
-  const confidence = uncertain ? 0.48 : severe ? 0.91 : spam ? 0.79 : 0.96;
-  const decision: Decision = confidence < 0.6 ? "needs_human_review" : severity > 80 ? "rejected" : confidence <= 0.85 ? "flagged" : "approved";
+function fallbackModeration(item: { type: string; text?: string }) {
+  const badWords = ["spam", "badword1", "badword2"]; // Example list
+  const text = (item.text || "").toLowerCase();
+  const hasBadWord = badWords.some(word => text.includes(word));
+  
   return {
-    decision,
-    severity,
-    confidence,
+    decision: hasBadWord ? "flagged" : "approved",
+    severity: hasBadWord ? 70 : 0,
+    confidence: 0.5,
     categories: {
-      hateSpeech: { triggered: severe, severity: severe ? 90 : 3 },
-      spam: { triggered: spam, severity: spam ? 55 : 10 },
-      type
+      hateSpeech: { triggered: false, severity: 0 },
+      harassment: { triggered: false, severity: 0 },
+      selfHarm: { triggered: false, severity: 0 },
+      sexualContent: { triggered: false, severity: 0 },
+      violence: { triggered: false, severity: 0 },
+      spam: { triggered: hasBadWord, severity: hasBadWord ? 70 : 0 }
     },
-    explanation: severe ? "Severe violent/hate indicators detected." : spam ? "Promotional spam patterns detected." : "No policy violation."
+    explanation: "Fallback moderation applied due to AI service unavailability."
   };
 }
+
+async function callGeminiModeration(item: { type: string; text?: string; mediaUrl?: string }) {
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = `
+      You are an expert content moderator for Aegis AI.
+      Analyze the following ${item.type} content and provide a JSON response.
+      
+      Structure:
+      {
+        "decision": "approved" | "rejected" | "flagged" | "needs_human_review",
+        "severity": number (0-100),
+        "confidence": number (0.0-1.0),
+        "categories": {
+          "hateSpeech": { "triggered": boolean, "severity": number },
+          "harassment": { "triggered": boolean, "severity": number },
+          "selfHarm": { "triggered": boolean, "severity": number },
+          "sexualContent": { "triggered": boolean, "severity": number },
+          "violence": { "triggered": boolean, "severity": number },
+          "spam": { "triggered": boolean, "severity": number }
+        },
+        "explanation": "brief reasoning"
+      }
+
+      Content to analyze:
+      ${item.text ? `TEXT: "${item.text}"` : `MEDIA_URL: ${item.mediaUrl}`}
+    `;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error("Non-JSON Gemini response:", text);
+      return fallbackModeration(item);
+    }
+    return JSON.parse(jsonMatch[0]);
+  } catch (err: any) {
+    console.error("Gemini Failure, using fallback:", err.message);
+    return fallbackModeration(item);
+  }
+}
+
+app.post("/moderate", authApiKey, enforceRateLimit, async (req: AegisReq, res: Response) => {
+  const validation = ModerateSchema.safeParse(req.body);
+  if (!validation.success) return res.status(400).json({ error: validation.error.format() });
+  const { type, text, mediaUrl, externalId, policyId, metadata, async: isAsyncRequest } = validation.data;
+  
+  const orgId = req.orgId!;
+  const payloadHash = sha256(`${type}:${text || ""}:${mediaUrl || ""}:${policyId || ""}`);
+  
+  // Cache check (24h)
+  const cacheSnap = await db.collection("organizations").doc(orgId).collection("content")
+    .where("contentHash", "==", payloadHash)
+    .where("createdAt", ">", Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000))
+    .limit(1).get();
+
+  if (!cacheSnap.empty) {
+    const cachedId = cacheSnap.docs[0].id;
+    const result = await db.collection("organizations").doc(orgId).collection("moderation_results").doc(cachedId).get();
+    return res.status(200).json({ requestId: `req_${cachedId}`, contentId: cachedId, cached: true, ...result.data() });
+  }
+
+  const contentRef = db.collection("organizations").doc(orgId).collection("content").doc();
+  const contentId = contentRef.id;
+  const now = Timestamp.now();
+  
+  // Determine if it should be async
+  const isVideoOrAudio = type === "video" || type === "audio";
+  const isLargeImage = type === "image" && (req.body.sizeMb || 0) > 5;
+  const isAsync = Boolean(isAsyncRequest) || isVideoOrAudio || isLargeImage;
+
+  await contentRef.set({
+    orgId,
+    policyId: policyId || null,
+    externalId: externalId || null,
+    type,
+    text: text || null,
+    mediaUrl: mediaUrl || null,
+    status: isAsync ? "queued" : "processing",
+    metadata: metadata || {},
+    contentHash: payloadHash,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  if (isAsync) {
+    return res.status(202).json({ 
+      requestId: `req_${contentId}`, 
+      contentId, 
+      status: "queued",
+      pollUrl: `/results/${contentId}`
+    });
+  }
+
+  const started = Date.now();
+  try {
+    const ai = await callGeminiModeration({ type, text, mediaUrl });
+    const needsHumanReview = ai.decision === "needs_human_review" || ai.confidence < 0.65;
+    
+    await db.collection("organizations").doc(orgId).collection("moderation_results").doc(contentId).set({
+      orgId,
+      contentId,
+      decision: ai.decision,
+      severity: ai.severity,
+      confidence: ai.confidence,
+      categories: ai.categories,
+      explanation: ai.explanation,
+      aiModel: "gemini-1.5-flash",
+      needsHumanReview,
+      processingMs: Date.now() - started,
+      createdAt: Timestamp.now()
+    });
+
+    await contentRef.update({ 
+      status: needsHumanReview ? "queued_for_review" : "completed", 
+      processedAt: Timestamp.now(), 
+      updatedAt: Timestamp.now() 
+    });
+
+    res.status(200).json({
+      requestId: `req_${contentId}`,
+      contentId,
+      decision: ai.decision,
+      severity: ai.severity,
+      confidence: ai.confidence,
+      categories: ai.categories,
+      processingMs: Date.now() - started
+    });
+  } catch (error) {
+    await contentRef.update({ status: "failed", error: "Internal AI processing error" });
+    res.status(500).json({ error: "Moderation processing failed" });
+  }
+});
 
 async function writeAudit(orgId: string, actor: string, action: string, resourceType: string, resourceId: string, before: any, after: any) {
   await db.collection("organizations").doc(orgId).collection("audit_logs").add({
@@ -160,73 +387,7 @@ function parseExpiry(value: unknown): Timestamp | null | undefined {
   return Timestamp.fromDate(date);
 }
 
-app.post("/v1/moderate", authApiKey, enforceRateLimit, async (req: AegisReq, res: Response) => {
-  const { type, text, mediaUrl, externalId, policyId, metadata, async } = req.body;
-  const orgId = req.orgId!;
-  if (!["text", "image", "audio", "video"].includes(type)) return res.status(400).json({ error: "Invalid type" });
-  if (type === "text" && (!text || typeof text !== "string" || !text.trim())) return res.status(400).json({ error: "text is required for type=text" });
-  if (type !== "text" && (!mediaUrl || typeof mediaUrl !== "string")) return res.status(400).json({ error: "mediaUrl is required for media content" });
-  const payloadHash = sha256(`${type}:${text || ""}:${mediaUrl || ""}:${policyId || ""}`);
-  const cacheSnap = await db.collection("organizations").doc(orgId).collection("content").where("contentHash", "==", payloadHash).where("createdAt", ">", Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000)).limit(1).get();
-  if (!cacheSnap.empty) {
-    const cachedId = cacheSnap.docs[0].id;
-    const result = await db.collection("organizations").doc(orgId).collection("moderation_results").doc(cachedId).get();
-    return res.status(200).json({ requestId: `req_${cachedId}`, contentId: cachedId, cached: true, ...result.data() });
-  }
-
-  const contentRef = db.collection("organizations").doc(orgId).collection("content").doc();
-  const contentId = contentRef.id;
-  const now = Timestamp.now();
-  const isAsync = Boolean(async) || type === "audio" || type === "video" || (type === "image" && (req.body.sizeMb || 0) > 5);
-  await contentRef.set({
-    orgId,
-    policyId: policyId || null,
-    externalId: externalId || null,
-    type,
-    text: text || null,
-    mediaUrl: mediaUrl || null,
-    status: isAsync ? "queued" : "processing",
-    metadata: metadata || {},
-    contentHash: payloadHash,
-    createdAt: now,
-    updatedAt: now
-  });
-
-  if (isAsync) {
-    const jobId = `job_${contentId}`;
-    await contentRef.update({ jobId, status: "queued" });
-    return res.status(202).json({ requestId: `req_${contentId}`, contentId, jobId, pollUrl: `/v1/results/${contentId}`, status: "queued" });
-  }
-
-  const started = Date.now();
-  const ai = mockModeration(text || "", type);
-  const needsHumanReview = ai.decision === "needs_human_review" || ai.confidence < 0.6;
-  await db.collection("organizations").doc(orgId).collection("moderation_results").doc(contentId).set({
-    orgId,
-    contentId,
-    decision: ai.decision,
-    severity: ai.severity,
-    confidence: ai.confidence,
-    categories: ai.categories,
-    explanation: ai.explanation,
-    aiModel: type === "text" ? "gemini-1.5-flash" : "gemini-1.5-pro",
-    needsHumanReview,
-    processingMs: Date.now() - started,
-    createdAt: Timestamp.now()
-  });
-  await contentRef.update({ status: needsHumanReview ? "queued_for_review" : "completed", processedAt: Timestamp.now(), updatedAt: Timestamp.now() });
-  res.status(200).json({
-    requestId: `req_${contentId}`,
-    contentId,
-    decision: ai.decision,
-    severity: ai.severity,
-    confidence: ai.confidence,
-    categories: ai.categories,
-    processingMs: Date.now() - started
-  });
-});
-
-app.get("/v1/results/:contentId", authApiKey, async (req: AegisReq, res: Response) => {
+app.get("/results/:contentId", authApiKey, async (req: AegisReq, res: Response) => {
   const contentId = String(req.params.contentId || "");
   const orgId = req.orgId!;
   const [contentDoc, resultDoc] = await Promise.all([
@@ -238,7 +399,7 @@ app.get("/v1/results/:contentId", authApiKey, async (req: AegisReq, res: Respons
   res.status(200).json({ requestId: `req_${contentId}`, contentId, status: "completed", ...resultDoc.data() });
 });
 
-app.get("/v1/results", authApiKey, async (req: AegisReq, res: Response) => {
+app.get("/results", authApiKey, async (req: AegisReq, res: Response) => {
   const orgId = req.orgId!;
   const { status, type, limit = "50" } = req.query;
   let q: any = db.collection("organizations").doc(orgId).collection("content").orderBy("createdAt", "desc").limit(Number(limit));
@@ -248,16 +409,18 @@ app.get("/v1/results", authApiKey, async (req: AegisReq, res: Response) => {
   res.status(200).json({ results: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })), hasMore: false, total: snap.size, nextCursor: null });
 });
 
-app.post("/v1/policies", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.post("/policies", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+  const validation = PolicySchema.safeParse(req.body);
+  if (!validation.success) return res.status(400).json({ error: validation.error.format() });
   const orgId = req.orgId!;
   const ref = db.collection("organizations").doc(orgId).collection("policies").doc();
   const now = Timestamp.now();
-  await ref.set({ orgId, version: 1, isActive: true, createdBy: "user", createdAt: now, updatedAt: now, ...req.body });
-  await writeAudit(orgId, "user", "policy.create", "policy", ref.id, null, req.body);
+  await ref.set({ orgId, version: 1, isActive: true, createdBy: "user", createdAt: now, updatedAt: now, ...validation.data });
+  await writeAudit(orgId, "user", "policy.create", "policy", ref.id, null, validation.data);
   res.status(201).json({ policyId: ref.id });
 });
 
-app.patch("/v1/policies/:policyId", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.patch("/policies/:policyId", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const orgId = req.orgId!;
   const policyId = String(req.params.policyId || "");
   const ref = db.collection("organizations").doc(orgId).collection("policies").doc(policyId);
@@ -269,13 +432,13 @@ app.patch("/v1/policies/:policyId", authUser, requireRole("admin"), async (req: 
   res.status(200).json({ policyId: ref.id, updated: true });
 });
 
-app.get("/v1/policies", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.get("/policies", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const orgId = req.orgId!;
   const snap = await db.collection("organizations").doc(orgId).collection("policies").orderBy("updatedAt", "desc").get();
   res.status(200).json({ policies: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) });
 });
 
-app.post("/v1/webhooks/test", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.post("/webhooks/test", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const orgId = req.orgId!;
   const org = (await db.collection("organizations").doc(orgId).get()).data() || {};
   const payload = JSON.stringify({ event: "moderation.completed", timestamp: new Date().toISOString(), orgId, data: { test: true } });
@@ -283,33 +446,35 @@ app.post("/v1/webhooks/test", authUser, requireRole("admin"), async (req: AegisR
   res.status(200).json({ delivered: true, signature, payload });
 });
 
-app.get("/v1/dashboard/summary", authUser, requireRole("user", "moderator", "admin"), async (req: AegisReq, res: Response) => {
+app.get("/dashboard/summary", authUser, requireRole("user", "moderator", "admin"), async (req: AegisReq, res: Response) => {
   const orgId = req.orgId!;
   const pending = await db.collection("organizations").doc(orgId).collection("content").where("status", "==", "queued_for_review").count().get();
   res.status(200).json({ pending: pending.data().count, orgId });
 });
 
-app.get("/v1/moderator/queue", authUser, requireRole("moderator"), async (req: AegisReq, res: Response) => {
+app.get("/moderator/queue", authUser, requireRole("moderator"), async (req: AegisReq, res: Response) => {
   const orgId = req.orgId!;
   const snap = await db.collection("organizations").doc(orgId).collection("moderation_results").where("needsHumanReview", "==", true).orderBy("createdAt", "asc").limit(50).get();
   res.status(200).json({ queue: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) });
 });
 
-app.post("/v1/moderator/review/:contentId", authUser, requireRole("moderator"), async (req: AegisReq, res: Response) => {
+app.post("/moderator/review/:contentId", authUser, requireRole("moderator"), async (req: AegisReq, res: Response) => {
+  const validation = ReviewSchema.safeParse(req.body);
+  if (!validation.success) return res.status(400).json({ error: validation.error.format() });
   const orgId = req.orgId!;
   const contentId = String(req.params.contentId || "");
-  const { decision, reason } = req.body;
-  if (decision !== "approved" && decision !== "rejected") return res.status(400).json({ error: "Invalid decision" });
+  const { decision, reason } = validation.data;
+  
   const resultRef = db.collection("organizations").doc(orgId).collection("moderation_results").doc(contentId);
   const resultDoc = await resultRef.get();
   if (!resultDoc.exists) return res.status(404).json({ error: "Moderation result not found" });
+  
   await resultRef.set({ overriddenDecision: decision, overrideReason: reason || null, reviewedAt: Timestamp.now(), needsHumanReview: false }, { merge: true });
   await db.collection("organizations").doc(orgId).collection("content").doc(contentId).set({ status: "completed", updatedAt: Timestamp.now() }, { merge: true });
-  await db.collection("organizations").doc(orgId).collection("feedback_signals").add({ orgId, contentId, aiDecision: "unknown", humanDecision: decision, delta: 1, moderatorId: "user", createdAt: Timestamp.now() });
   res.status(200).json({ reviewed: true });
 });
 
-app.get("/v1/analytics/overview", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.get("/analytics/overview", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const orgId = req.orgId!;
   const recent = await db.collection("organizations").doc(orgId).collection("moderation_results").orderBy("createdAt", "desc").limit(200).get();
   const rows = recent.docs.map((d: any) => d.data());
@@ -318,21 +483,21 @@ app.get("/v1/analytics/overview", authUser, requireRole("admin"), async (req: Ae
   res.status(200).json({ total: rows.length, rejected, flagged, aiAccuracy: 94.2 });
 });
 
-app.get("/v1/admin/organizations", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.get("/admin/organizations", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const orgId = req.orgId!;
   const orgDoc = await db.collection("organizations").doc(orgId).get();
   if (!orgDoc.exists) return res.status(404).json({ error: "Organization not found" });
   res.status(200).json({ organizations: [{ id: orgDoc.id, ...orgDoc.data() }] });
 });
 
-app.post("/v1/admin/organizations/:orgId/suspend", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.post("/admin/organizations/:orgId/suspend", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const orgId = ensureAdminScope(req, req.params.orgId, res);
   if (!orgId) return;
   await db.collection("organizations").doc(orgId).set({ status: "suspended", updatedAt: Timestamp.now() }, { merge: true });
   res.status(200).json({ suspended: true });
 });
 
-app.get("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.get("/admin/api-keys", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const queryOrgId = Array.isArray(req.query.orgId) ? req.query.orgId[0] : req.query.orgId;
   const orgId = ensureAdminScope(req, queryOrgId, res);
   if (!orgId) return;
@@ -354,7 +519,7 @@ app.get("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: AegisR
   });
 });
 
-app.post("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.post("/admin/api-keys", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const orgId = ensureAdminScope(req, req.body.orgId as string | undefined, res);
   if (!orgId) return;
   const label = String(req.body.label || "default");
@@ -381,7 +546,7 @@ app.post("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: Aegis
   res.status(201).json({ keyId: keyHash, apiKey: rawKey, keyPreview, orgId, label, expiresAt });
 });
 
-app.post("/v1/admin/api-keys/:keyId/revoke", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.post("/admin/api-keys/:keyId/revoke", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const keyId = String(req.params.keyId || "");
   const ref = db.collection("api_keys").doc(keyId);
   const doc = await ref.get();
@@ -393,7 +558,7 @@ app.post("/v1/admin/api-keys/:keyId/revoke", authUser, requireRole("admin"), asy
   res.status(200).json({ revoked: true, keyId });
 });
 
-app.patch("/v1/admin/api-keys/:keyId", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.patch("/admin/api-keys/:keyId", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const keyId = String(req.params.keyId || "");
   const ref = db.collection("api_keys").doc(keyId);
   const doc = await ref.get();
@@ -409,7 +574,7 @@ app.patch("/v1/admin/api-keys/:keyId", authUser, requireRole("admin"), async (re
   res.status(200).json({ updated: true, keyId, label, expiresAt });
 });
 
-app.post("/v1/admin/api-keys/:keyId/rotate", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+app.post("/admin/api-keys/:keyId/rotate", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
   const keyId = String(req.params.keyId || "");
   const oldRef = db.collection("api_keys").doc(keyId);
   const oldDoc = await oldRef.get();
@@ -452,3 +617,42 @@ app.post("/v1/admin/api-keys/:keyId/rotate", authUser, requireRole("admin"), asy
 });
 
 export const api = onRequest({ region: "us-central1", maxInstances: 10 }, app);
+
+export const onContentCreated = onDocumentCreated("organizations/{orgId}/content/{contentId}", async (event) => {
+  const data = event.data?.data();
+  if (!data || data.status !== "queued") return;
+  const { orgId, contentId } = event.params;
+  const { type, text, mediaUrl } = data;
+
+  const started = Date.now();
+  try {
+    const ai = await callGeminiModeration({ type, text, mediaUrl });
+    const needsHumanReview = ai.decision === "needs_human_review" || ai.confidence < 0.65;
+    
+    await db.collection("organizations").doc(orgId).collection("moderation_results").doc(contentId).set({
+      orgId,
+      contentId,
+      decision: ai.decision,
+      severity: ai.severity,
+      confidence: ai.confidence,
+      categories: ai.categories,
+      explanation: ai.explanation,
+      aiModel: "gemini-1.5-flash-async",
+      needsHumanReview,
+      processingMs: Date.now() - started,
+      createdAt: Timestamp.now()
+    });
+
+    await db.collection("organizations").doc(orgId).collection("content").doc(event.params.contentId).update({ 
+      status: needsHumanReview ? "queued_for_review" : "completed", 
+      processedAt: Timestamp.now(), 
+      updatedAt: Timestamp.now() 
+    });
+  } catch (error) {
+    console.error("Async error:", error);
+    await db.collection("organizations").doc(orgId).collection("content").doc(event.params.contentId).update({ 
+      status: "failed", 
+      error: "Async AI processing failed" 
+    });
+  }
+});
