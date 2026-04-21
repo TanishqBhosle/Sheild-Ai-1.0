@@ -5,7 +5,7 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 
 const projectId = "aegis-ai-d9204";
 const orgId = "org_demo";
-const apiBase = `http://127.0.0.1:5001/${projectId}/us-central1/api/v1`;
+const apiBase = `http://127.0.0.1:5001/${projectId}/us-central1/api`;
 const authRestBase = "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1";
 const emulatorApiKey = "demo-key";
 const password = "Passw0rd!";
@@ -48,7 +48,9 @@ async function signIn(email) {
 }
 
 async function api(path, method, tokenOrApiKey, body) {
-  const response = await fetch(`${apiBase}${path}`, {
+  const url = `${apiBase}${path}`;
+  console.log(`[API CALL] ${method} ${url}`);
+  const response = await fetch(url, {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -99,6 +101,30 @@ async function main() {
   assert(moderateResp.status === 200, `POST /moderate failed: ${JSON.stringify(moderateResp)}`);
   const contentId = moderateResp.payload.contentId;
   assert(contentId, "POST /moderate missing contentId");
+
+  console.log("Testing ASYNC moderation (video)...");
+  const asyncResp = await api("/moderate", "POST", rawApiKey, {
+    type: "video",
+    mediaUrl: "https://example.com/test.mp4",
+    async: true
+  });
+  assert(asyncResp.status === 202, `POST /moderate async failed: ${JSON.stringify(asyncResp)}`);
+  const asyncId = asyncResp.payload.contentId;
+  assert(asyncId, "Async POST missing contentId");
+
+  console.log(`Polling for async result ${asyncId}...`);
+  let completed = false;
+  for (let i = 0; i < 10; i++) {
+    const poll = await api(`/results/${asyncId}`, "GET", rawApiKey);
+    if (poll.payload.status === "completed" || poll.payload.status === "queued_for_review") {
+      completed = true;
+      console.log(`Async job completed with status: ${poll.payload.status}`);
+      break;
+    }
+    console.log(`...still ${poll.payload.status}`);
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  assert(completed, "Async moderation timed out");
 
   const singleResult = await api(`/results/${contentId}`, "GET", rawApiKey);
   assert(singleResult.status === 200, `GET /results/:contentId failed: ${JSON.stringify(singleResult)}`);
