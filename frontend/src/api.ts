@@ -64,3 +64,21 @@ export async function fetchAnalyticsOverview(user: User) {
 export async function fetchOrganizations(user: User) {
   return authedFetch("/admin/organizations", user) as Promise<{ organizations: Array<Record<string, unknown>> }>;
 }
+
+export async function fetchAdminApiKeys(user: User, orgId?: string) {
+  const qs = orgId ? `?orgId=${encodeURIComponent(orgId)}` : "";
+  return authedFetch(`/admin/api-keys${qs}`, user) as Promise<{ keys: Array<Record<string, unknown>> }>;
+}
+
+export async function createAdminApiKey(user: User, payload: { orgId?: string; label: string; expiresAt?: string }) {
+  return authedFetch("/admin/api-keys", user, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  }) as Promise<{ keyId: string; apiKey: string; keyPreview: string }>;
+}
+
+export async function revokeAdminApiKey(user: User, keyId: string) {
+  return authedFetch(`/admin/api-keys/${keyId}/revoke`, user, {
+    method: "POST"
+  }) as Promise<{ revoked: boolean }>;
+}

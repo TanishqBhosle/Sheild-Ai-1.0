@@ -297,4 +297,61 @@ app.post("/v1/admin/organizations/:orgId/suspend", authUser, requireRole("admin"
   res.status(200).json({ suspended: true });
 });
 
+app.get("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+  const orgId = String(req.query.orgId || req.orgId || "");
+  if (!orgId) return res.status(400).json({ error: "orgId is required" });
+  const snap = await db.collection("api_keys").where("orgId", "==", orgId).orderBy("createdAt", "desc").limit(100).get();
+  res.status(200).json({
+    keys: snap.docs.map((doc: any) => {
+      const row = doc.data();
+      return {
+        keyId: doc.id,
+        orgId: row.orgId,
+        label: row.label || null,
+        isActive: Boolean(row.isActive),
+        keyPreview: row.keyPreview || null,
+        lastUsedAt: row.lastUsedAt || null,
+        createdAt: row.createdAt || null,
+        expiresAt: row.expiresAt || null
+      };
+    })
+  });
+});
+
+app.post("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+  const orgId = String(req.body.orgId || req.orgId || "");
+  if (!orgId) return res.status(400).json({ error: "orgId is required" });
+  const label = String(req.body.label || "default");
+  const rawKey = `aegis_${orgId}_${crypto.randomBytes(24).toString("hex")}`;
+  const keyHash = sha256(rawKey);
+  const now = Timestamp.now();
+  const expiresAt = req.body.expiresAt ? Timestamp.fromDate(new Date(String(req.body.expiresAt))) : null;
+  const keyPreview = `${rawKey.slice(0, 10)}...${rawKey.slice(-6)}`;
+  await db.collection("api_keys").doc(keyHash).set({
+    orgId,
+    label,
+    isActive: true,
+    keyPreview,
+    createdAt: now,
+    updatedAt: now,
+    createdByRole: req.role,
+    createdByOrgId: req.orgId || null,
+    lastUsedAt: null,
+    expiresAt
+  });
+  await writeAudit(orgId, "admin", "api_key.create", "api_key", keyHash, null, { label, keyPreview, expiresAt });
+  res.status(201).json({ keyId: keyHash, apiKey: rawKey, keyPreview, orgId, label, expiresAt });
+});
+
+app.post("/v1/admin/api-keys/:keyId/revoke", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+  const keyId = String(req.params.keyId || "");
+  const ref = db.collection("api_keys").doc(keyId);
+  const doc = await ref.get();
+  if (!doc.exists) return res.status(404).json({ error: "API key not found" });
+  const before = doc.data() as any;
+  await ref.set({ isActive: false, revokedAt: Timestamp.now(), updatedAt: Timestamp.now() }, { merge: true });
+  await writeAudit(before.orgId, "admin", "api_key.revoke", "api_key", keyId, before, { isActive: false });
+  res.status(200).json({ revoked: true, keyId });
+});
+
 export const api = onRequest({ region: "us-central1", maxInstances: 10 }, app);

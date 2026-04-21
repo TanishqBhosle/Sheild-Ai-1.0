@@ -2,7 +2,18 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
-import { createPolicy, fetchAnalyticsOverview, fetchModeratorQueue, fetchOrganizations, fetchPolicies, moderateContent, reviewModeration } from "./api";
+import {
+  createAdminApiKey,
+  createPolicy,
+  fetchAdminApiKeys,
+  fetchAnalyticsOverview,
+  fetchModeratorQueue,
+  fetchOrganizations,
+  fetchPolicies,
+  moderateContent,
+  reviewModeration,
+  revokeAdminApiKey
+} from "./api";
 import { auth, db } from "./firebase";
 import { useAuth } from "./auth";
 
@@ -328,6 +339,9 @@ export function AdminPanelPage() {
   const [policyName, setPolicyName] = useState("");
   const [policyDescription, setPolicyDescription] = useState("");
   const [policyThreshold, setPolicyThreshold] = useState(80);
+  const [apiKeys, setApiKeys] = useState<Array<Record<string, unknown>>>([]);
+  const [keyLabel, setKeyLabel] = useState("");
+  const [createdRawKey, setCreatedRawKey] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -339,6 +353,9 @@ export function AdminPanelPage() {
     }
     if (location.pathname === "/admin/analytics") {
       fetchAnalyticsOverview(user).then((r) => setAnalytics(r)).catch((e: unknown) => setState(e instanceof Error ? e.message : "Failed loading analytics"));
+    }
+    if (location.pathname === "/admin/api-keys") {
+      fetchAdminApiKeys(user).then((r) => setApiKeys(r.keys)).catch((e: unknown) => setState(e instanceof Error ? e.message : "Failed loading API keys"));
     }
   }, [location.pathname, user]);
 
@@ -355,6 +372,33 @@ export function AdminPanelPage() {
       setState("Policy created.");
     } catch (error) {
       setState(error instanceof Error ? error.message : "Failed to create policy");
+    }
+  }
+
+  async function onCreateApiKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user) return;
+    try {
+      const created = await createAdminApiKey(user, { label: keyLabel || "default" });
+      setCreatedRawKey(created.apiKey);
+      setKeyLabel("");
+      const refreshed = await fetchAdminApiKeys(user);
+      setApiKeys(refreshed.keys);
+      setState("API key created. Copy it now; it is shown only once.");
+    } catch (error) {
+      setState(error instanceof Error ? error.message : "Failed to create API key");
+    }
+  }
+
+  async function onRevokeApiKey(keyId: string) {
+    if (!user) return;
+    try {
+      await revokeAdminApiKey(user, keyId);
+      const refreshed = await fetchAdminApiKeys(user);
+      setApiKeys(refreshed.keys);
+      setState(`Revoked key ${keyId}`);
+    } catch (error) {
+      setState(error instanceof Error ? error.message : "Failed to revoke API key");
     }
   }
 
@@ -415,7 +459,47 @@ export function AdminPanelPage() {
         </div>
       ) : null}
 
-      {location.pathname === "/admin/api-keys" ? <Card title="API Keys" text="Use backend admin tooling to create/rotate keys; only hashed keys are stored server-side." /> : null}
+      {location.pathname === "/admin/api-keys" ? (
+        <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <h2 className="mb-3 text-sm font-semibold">API Keys</h2>
+          <form onSubmit={onCreateApiKey} className="mb-4 flex items-center gap-2">
+            <input
+              value={keyLabel}
+              onChange={(e) => setKeyLabel(e.target.value)}
+              placeholder="Key label"
+              className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs"
+            />
+            <button type="submit" className="rounded bg-indigo-500 px-3 py-2 text-xs font-semibold">Create Key</button>
+          </form>
+          {createdRawKey ? (
+            <div className="mb-4 rounded border border-amber-700 bg-amber-950 p-3 text-xs text-amber-200">
+              One-time secret (copy now): <span className="font-mono">{createdRawKey}</span>
+            </div>
+          ) : null}
+          <div className="space-y-2 text-xs">
+            {apiKeys.map((key) => {
+              const keyId = String(key.keyId ?? "");
+              const isActive = Boolean(key.isActive);
+              return (
+                <div key={keyId} className="rounded border border-slate-800 bg-slate-950 p-3">
+                  <p>ID: {keyId}</p>
+                  <p>Label: {String(key.label ?? "-")}</p>
+                  <p>Preview: {String(key.keyPreview ?? "-")}</p>
+                  <p>Status: {isActive ? "active" : "revoked"}</p>
+                  <button
+                    onClick={() => onRevokeApiKey(keyId)}
+                    disabled={!isActive}
+                    className="mt-2 rounded bg-red-600 px-2 py-1 disabled:opacity-50"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              );
+            })}
+            {apiKeys.length === 0 ? <p className="text-slate-400">No API keys yet.</p> : null}
+          </div>
+        </div>
+      ) : null}
 
       {location.pathname === "/admin/analytics" ? (
         <div className="grid grid-cols-2 gap-3">
