@@ -1,6 +1,6 @@
 import { User } from "firebase/auth";
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/v1";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api";
 
 async function authedFetch(path: string, user: User, init?: RequestInit) {
   const token = await user.getIdToken();
@@ -17,6 +17,13 @@ async function authedFetch(path: string, user: User, init?: RequestInit) {
     throw new Error(payload.error ?? `Request failed: ${response.status}`);
   }
   return response.json();
+}
+
+export async function signupUser(user: User, payload: { name: string; role: string; requestedOrgId?: string }) {
+  return authedFetch("/auth/signup", user, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  }) as Promise<{ success: boolean; role: string; orgId: string }>;
 }
 
 export async function moderateContent(payload: { type: "text" | "image" | "video"; text?: string; mediaUrl?: string; async?: boolean }, apiKey: string) {
