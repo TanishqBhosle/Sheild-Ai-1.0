@@ -152,7 +152,9 @@ Paginated/filterable listing (`status`, `type`, `limit`).
 - `POST /v1/admin/organizations/:orgId/suspend`
 - `GET /v1/admin/api-keys`
 - `POST /v1/admin/api-keys`
+- `PATCH /v1/admin/api-keys/:keyId`
 - `POST /v1/admin/api-keys/:keyId/revoke`
+- `POST /v1/admin/api-keys/:keyId/rotate`
 
 ### Role Expectations by Endpoint
 
@@ -162,7 +164,7 @@ Paginated/filterable listing (`status`, `type`, `limit`).
   - Queue/review: `GET /v1/moderator/queue`, `POST /v1/moderator/review/:contentId`
 - **Admin**
   - Policies, analytics, organizations, suspend org, webhook test
-  - API key lifecycle: list/create/revoke
+  - API key lifecycle: list/create/update-expiry/revoke/atomic-rotate
 
 ### Webhooks
 - `POST /v1/webhooks/test`

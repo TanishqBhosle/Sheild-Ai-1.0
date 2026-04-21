@@ -134,6 +134,15 @@ async function writeAudit(orgId: string, actor: string, action: string, resource
   });
 }
 
+function parseExpiry(value: unknown): Timestamp | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return undefined;
+  if (date.getTime() <= Date.now()) return undefined;
+  return Timestamp.fromDate(date);
+}
+
 app.post("/v1/moderate", authApiKey, enforceRateLimit, async (req: AegisReq, res: Response) => {
   const { type, text, mediaUrl, externalId, policyId, metadata, async } = req.body;
   const orgId = req.orgId!;
@@ -325,7 +334,8 @@ app.post("/v1/admin/api-keys", authUser, requireRole("admin"), async (req: Aegis
   const rawKey = `aegis_${orgId}_${crypto.randomBytes(24).toString("hex")}`;
   const keyHash = sha256(rawKey);
   const now = Timestamp.now();
-  const expiresAt = req.body.expiresAt ? Timestamp.fromDate(new Date(String(req.body.expiresAt))) : null;
+  const expiresAt = parseExpiry(req.body.expiresAt);
+  if (expiresAt === undefined) return res.status(400).json({ error: "expiresAt must be a valid future ISO date or null" });
   const keyPreview = `${rawKey.slice(0, 10)}...${rawKey.slice(-6)}`;
   await db.collection("api_keys").doc(keyHash).set({
     orgId,
@@ -352,6 +362,59 @@ app.post("/v1/admin/api-keys/:keyId/revoke", authUser, requireRole("admin"), asy
   await ref.set({ isActive: false, revokedAt: Timestamp.now(), updatedAt: Timestamp.now() }, { merge: true });
   await writeAudit(before.orgId, "admin", "api_key.revoke", "api_key", keyId, before, { isActive: false });
   res.status(200).json({ revoked: true, keyId });
+});
+
+app.patch("/v1/admin/api-keys/:keyId", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+  const keyId = String(req.params.keyId || "");
+  const ref = db.collection("api_keys").doc(keyId);
+  const doc = await ref.get();
+  if (!doc.exists) return res.status(404).json({ error: "API key not found" });
+  const before = doc.data() as any;
+  const expiresAt = parseExpiry(req.body.expiresAt);
+  if (expiresAt === undefined) return res.status(400).json({ error: "expiresAt must be a valid future ISO date or null" });
+  const label = req.body.label !== undefined ? String(req.body.label || "default") : before.label;
+  await ref.set({ label, expiresAt, updatedAt: Timestamp.now() }, { merge: true });
+  await writeAudit(before.orgId, "admin", "api_key.update", "api_key", keyId, before, { label, expiresAt });
+  res.status(200).json({ updated: true, keyId, label, expiresAt });
+});
+
+app.post("/v1/admin/api-keys/:keyId/rotate", authUser, requireRole("admin"), async (req: AegisReq, res: Response) => {
+  const keyId = String(req.params.keyId || "");
+  const oldRef = db.collection("api_keys").doc(keyId);
+  const oldDoc = await oldRef.get();
+  if (!oldDoc.exists) return res.status(404).json({ error: "API key not found" });
+  const oldData = oldDoc.data() as any;
+  if (!oldData.isActive) return res.status(409).json({ error: "Cannot rotate inactive key" });
+
+  const newLabel = String(req.body.label || `${oldData.label || "key"}-rotated`);
+  const newExpiresAt = parseExpiry(req.body.expiresAt ?? oldData.expiresAt?.toDate?.()?.toISOString() ?? null);
+  if (newExpiresAt === undefined) return res.status(400).json({ error: "expiresAt must be a valid future ISO date or null" });
+
+  const rawKey = `aegis_${oldData.orgId}_${crypto.randomBytes(24).toString("hex")}`;
+  const newKeyHash = sha256(rawKey);
+  const now = Timestamp.now();
+  const keyPreview = `${rawKey.slice(0, 10)}...${rawKey.slice(-6)}`;
+  const newRef = db.collection("api_keys").doc(newKeyHash);
+
+  const batch = db.batch();
+  batch.set(newRef, {
+    orgId: oldData.orgId,
+    label: newLabel,
+    isActive: true,
+    keyPreview,
+    createdAt: now,
+    updatedAt: now,
+    createdByRole: req.role,
+    createdByOrgId: req.orgId || null,
+    lastUsedAt: null,
+    expiresAt: newExpiresAt,
+    rotatedFrom: keyId
+  });
+  batch.set(oldRef, { isActive: false, revokedAt: now, revokedByRotation: true, rotatedTo: newKeyHash, updatedAt: now }, { merge: true });
+  await batch.commit();
+
+  await writeAudit(oldData.orgId, "admin", "api_key.rotate", "api_key", keyId, oldData, { rotatedTo: newKeyHash, revokedByRotation: true });
+  res.status(201).json({ rotated: true, oldKeyId: keyId, newKeyId: newKeyHash, apiKey: rawKey, keyPreview, expiresAt: newExpiresAt });
 });
 
 export const api = onRequest({ region: "us-central1", maxInstances: 10 }, app);

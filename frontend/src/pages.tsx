@@ -11,7 +11,9 @@ import {
   fetchOrganizations,
   fetchPolicies,
   moderateContent,
+  rotateAdminApiKey,
   reviewModeration,
+  updateAdminApiKey,
   revokeAdminApiKey
 } from "./api";
 import { auth, db } from "./firebase";
@@ -76,6 +78,16 @@ function Card({ title, text }: { title: string; text: string }) {
 
 function statusText(value: unknown) {
   return typeof value === "string" ? value : "unknown";
+}
+
+function formatExpiry(value: unknown) {
+  if (!value) return "never";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null) {
+    const maybeDate = (value as { toDate?: () => Date }).toDate;
+    if (typeof maybeDate === "function") return maybeDate().toISOString();
+  }
+  return String(value);
 }
 
 export function LoginPage() {
@@ -341,7 +353,9 @@ export function AdminPanelPage() {
   const [policyThreshold, setPolicyThreshold] = useState(80);
   const [apiKeys, setApiKeys] = useState<Array<Record<string, unknown>>>([]);
   const [keyLabel, setKeyLabel] = useState("");
+  const [keyExpiresAt, setKeyExpiresAt] = useState("");
   const [createdRawKey, setCreatedRawKey] = useState("");
+  const [editExpiryByKeyId, setEditExpiryByKeyId] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -379,9 +393,10 @@ export function AdminPanelPage() {
     event.preventDefault();
     if (!user) return;
     try {
-      const created = await createAdminApiKey(user, { label: keyLabel || "default" });
+      const created = await createAdminApiKey(user, { label: keyLabel || "default", expiresAt: keyExpiresAt || undefined });
       setCreatedRawKey(created.apiKey);
       setKeyLabel("");
+      setKeyExpiresAt("");
       const refreshed = await fetchAdminApiKeys(user);
       setApiKeys(refreshed.keys);
       setState("API key created. Copy it now; it is shown only once.");
@@ -399,6 +414,33 @@ export function AdminPanelPage() {
       setState(`Revoked key ${keyId}`);
     } catch (error) {
       setState(error instanceof Error ? error.message : "Failed to revoke API key");
+    }
+  }
+
+  async function onSaveExpiry(keyId: string) {
+    if (!user) return;
+    try {
+      const expiresAt = editExpiryByKeyId[keyId];
+      await updateAdminApiKey(user, keyId, { expiresAt: expiresAt || null });
+      const refreshed = await fetchAdminApiKeys(user);
+      setApiKeys(refreshed.keys);
+      setState(`Updated expiration for ${keyId}`);
+    } catch (error) {
+      setState(error instanceof Error ? error.message : "Failed to update expiration");
+    }
+  }
+
+  async function onRotateApiKey(keyId: string) {
+    if (!user) return;
+    try {
+      const expiresAt = editExpiryByKeyId[keyId];
+      const rotated = await rotateAdminApiKey(user, keyId, { expiresAt: expiresAt || null });
+      setCreatedRawKey(rotated.apiKey);
+      const refreshed = await fetchAdminApiKeys(user);
+      setApiKeys(refreshed.keys);
+      setState(`Rotated key ${keyId}. Copy replacement key now.`);
+    } catch (error) {
+      setState(error instanceof Error ? error.message : "Failed to rotate key");
     }
   }
 
@@ -469,6 +511,12 @@ export function AdminPanelPage() {
               placeholder="Key label"
               className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs"
             />
+            <input
+              type="datetime-local"
+              value={keyExpiresAt}
+              onChange={(e) => setKeyExpiresAt(e.target.value)}
+              className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs"
+            />
             <button type="submit" className="rounded bg-indigo-500 px-3 py-2 text-xs font-semibold">Create Key</button>
           </form>
           {createdRawKey ? (
@@ -486,12 +534,32 @@ export function AdminPanelPage() {
                   <p>Label: {String(key.label ?? "-")}</p>
                   <p>Preview: {String(key.keyPreview ?? "-")}</p>
                   <p>Status: {isActive ? "active" : "revoked"}</p>
+                  <p>Expires: {formatExpiry(key.expiresAt)}</p>
+                  <input
+                    type="datetime-local"
+                    value={editExpiryByKeyId[keyId] ?? ""}
+                    onChange={(e) => setEditExpiryByKeyId((prev) => ({ ...prev, [keyId]: e.target.value }))}
+                    className="mt-2 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1"
+                  />
                   <button
                     onClick={() => onRevokeApiKey(keyId)}
                     disabled={!isActive}
                     className="mt-2 rounded bg-red-600 px-2 py-1 disabled:opacity-50"
                   >
                     Revoke
+                  </button>
+                  <button
+                    onClick={() => onSaveExpiry(keyId)}
+                    className="ml-2 mt-2 rounded bg-slate-700 px-2 py-1"
+                  >
+                    Save Expiry
+                  </button>
+                  <button
+                    onClick={() => onRotateApiKey(keyId)}
+                    disabled={!isActive}
+                    className="ml-2 mt-2 rounded bg-indigo-600 px-2 py-1 disabled:opacity-50"
+                  >
+                    Rotate (atomic)
                   </button>
                 </div>
               );

@@ -82,3 +82,17 @@ export async function revokeAdminApiKey(user: User, keyId: string) {
     method: "POST"
   }) as Promise<{ revoked: boolean }>;
 }
+
+export async function updateAdminApiKey(user: User, keyId: string, payload: { label?: string; expiresAt?: string | null }) {
+  return authedFetch(`/admin/api-keys/${keyId}`, user, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  }) as Promise<{ updated: boolean }>;
+}
+
+export async function rotateAdminApiKey(user: User, keyId: string, payload: { label?: string; expiresAt?: string | null }) {
+  return authedFetch(`/admin/api-keys/${keyId}/rotate`, user, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  }) as Promise<{ rotated: boolean; apiKey: string; newKeyId: string }>;
+}
