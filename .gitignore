@@ -35,5 +35,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Firebase Emulator Data
+emulator_data/
+firebase-export-*/
+
 # TypeScript
 *.tsbuildinfo

@@ -67,10 +67,11 @@ export async function runTextPipeline(
 
     // Improved detection patterns
     const patterns = [
-      { words: ["kill", "die", "hurt", "attack", "murder", "weapon"], cat: "violence", sev: 85, exp: "Potential violence or threat detected." },
-      { words: ["hate", "racist", "nazi", "terrorist", "dumb", "stupid"], cat: "hateSpeech", sev: 75, exp: "Hate speech or harassment markers identified." },
-      { words: ["buy", "discount", "click here", "free money", "winner"], cat: "spam", sev: 55, exp: "Spam-like patterns detected." },
-      { words: ["sex", "porn", "adult", "nude", "xxx"], cat: "nsfw", sev: 95, exp: "Explicit content detected." }
+      { words: ["kill", "die", "hurt", "attack", "murder", "weapon", "shoot", "bomb", "destroy"], cat: "violence", sev: 90, exp: "Potential violence or threat detected." },
+      { words: ["hate", "racist", "nazi", "terrorist", "dumb", "stupid", "slur", "inferior", "superior race", "discrimination"], cat: "hateSpeech", sev: 85, exp: "Hate speech or discriminatory language detected." },
+      { words: ["buy", "discount", "click here", "free money", "winner", "prize", "spam", "congratulations"], cat: "spam", sev: 55, exp: "Spam-like patterns detected." },
+      { words: ["sex", "porn", "adult", "nude", "xxx", "nsfw", "naked"], cat: "nsfw", sev: 95, exp: "Explicit content detected." },
+      { words: ["drug", "cocaine", "heroin", "meth", "illegal", "manufacture", "prohibited", "substance"], cat: "illegalContent", sev: 90, exp: "Illegal or prohibited content detected." }
     ];
 
     for (const p of patterns) {
@@ -83,13 +84,15 @@ export async function runTextPipeline(
       }
     }
 
-    // Severity Mapping: Low (0-30) -> Allow, Medium (31-60) -> Flag, High (61-100) -> Block
-    if (severity > 60) {
+    // Determine decision based on highest severity triggered
+    if (severity >= 60) {
       decision = "rejected";
-    } else if (severity > 30) {
+    } else if (severity >= 30) {
       decision = "flagged";
     } else {
-      decision = "approved";
+      // If no specific patterns matched but we hit an error, flag for safety
+      decision = "flagged";
+      explanation = "Text analysis was inconclusive or blocked. Flagged for safety review.";
     }
 
     return {
@@ -98,7 +101,7 @@ export async function runTextPipeline(
       confidence: 0.9,
       categories,
       explanation: `${explanation} (Aegis Local Fallback)`,
-      needsHumanReview: decision === "flagged" || (decision as string) === "needs_human_review",
+      needsHumanReview: true, // Always review if fallback was triggered
       aiModel: "aegis-local-v1",
     };
   }

@@ -12,7 +12,7 @@ router.get("/:contentId", async (req: Request, res: Response) => {
     const { contentId } = req.params;
     const db = getFirestore();
 
-    const contentDoc = await db.doc(`organizations/${ctx.orgId}/content/${contentId}`).get();
+    const contentDoc = await db.doc(`content/${contentId}`).get();
     if (!contentDoc.exists) {
       res.status(404).json({ error: "Content not found" });
       return;
@@ -21,7 +21,7 @@ router.get("/:contentId", async (req: Request, res: Response) => {
     const content = contentDoc.data();
 
     // Find moderation result
-    const resultsSnap = await db.collection(`organizations/${ctx.orgId}/moderation_results`)
+    const resultsSnap = await db.collection("moderation_results")
       .where("contentId", "==", contentId)
       .limit(1)
       .get();
@@ -49,7 +49,7 @@ router.get("/", async (req: Request, res: Response) => {
     const { status, type, limit: limitStr, cursor, from, to } = req.query;
     const limit = Math.min(parseInt(limitStr as string) || 20, 100);
 
-    let query = db.collection(`organizations/${ctx.orgId}/moderation_results`)
+    let query = db.collection("moderation_results")
       .orderBy("createdAt", "desc")
       .limit(limit);
 
@@ -58,7 +58,7 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     if (cursor) {
-      const cursorDoc = await db.doc(`organizations/${ctx.orgId}/moderation_results/${cursor}`).get();
+      const cursorDoc = await db.doc(`moderation_results/${cursor}`).get();
       if (cursorDoc.exists) {
         query = query.startAfter(cursorDoc);
       }

@@ -1,4 +1,4 @@
-import { getProModel } from "../geminiClient";
+import { getFlashModel } from "../geminiClient";
 import { buildModerationPrompt } from "../promptFactory";
 import { parseAIResponse, normalizeScores } from "../scoreNormalizer";
 import { Policy, ModerationResult, CategoryScore } from "../../types";
@@ -17,7 +17,7 @@ export async function runAudioPipeline(
   needsHumanReview: boolean;
   aiModel: string;
 }> {
-  const model = getProModel();
+  const model = getFlashModel();
 
   try {
     let audioBase64 = audioInput;

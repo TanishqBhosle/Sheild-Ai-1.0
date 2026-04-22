@@ -19,7 +19,8 @@ export async function rateLimiter(req: Request, res: Response, next: NextFunctio
   const now = new Date();
   const windowKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
 
-  const rateLimitRef = db.doc(`organizations/${ctx.orgId}/rate_limits/${windowKey}`);
+  // Flat path: rate_limits/u_{uid}_{windowKey}
+  const rateLimitRef = db.doc(`rate_limits/u_${ctx.uid}_${windowKey}`);
 
   try {
     const result = await db.runTransaction(async (txn) => {
@@ -32,7 +33,7 @@ export async function rateLimiter(req: Request, res: Response, next: NextFunctio
 
       txn.set(rateLimitRef, {
         count: FieldValue.increment(1),
-        orgId: ctx.orgId,
+        uid: ctx.uid,
         updatedAt: Timestamp.now(),
       }, { merge: true });
 

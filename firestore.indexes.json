@@ -52,6 +52,38 @@
         { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "period", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "moderation_results",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "moderation_results",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "needsHumanReview", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "moderation_results",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "moderation_results",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "needsHumanReview", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

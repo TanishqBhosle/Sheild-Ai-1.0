@@ -1,4 +1,4 @@
-import { getProModel } from "../geminiClient";
+import { getFlashModel } from "../geminiClient";
 import { buildImagePrompt } from "../promptFactory";
 import { parseAIResponse, normalizeScores } from "../scoreNormalizer";
 import { Policy, ModerationResult, CategoryScore } from "../../types";
@@ -17,7 +17,7 @@ export async function runImagePipeline(
   needsHumanReview: boolean;
   aiModel: string;
 }> {
-  const model = getProModel();
+  const model = getFlashModel();
   const prompt = buildImagePrompt(policy);
 
   try {
@@ -70,20 +70,19 @@ export async function runImagePipeline(
   } catch (error: any) {
     console.error("Image Pipeline Error:", error.message);
     
-    // IMAGE FALLBACK ENGINE
+    // IMAGE FALLBACK ENGINE - Safety First
     return {
-      decision: "approved",
-      severity: 15,
-      confidence: 0.85,
+      decision: "flagged",
+      severity: 100,
+      confidence: 1.0,
       categories: {
-        "nsfw": { triggered: false, severity: 10, confidence: 0.9 },
-        "violence": { triggered: false, severity: 5, confidence: 0.9 },
-        "hateSpeech": { triggered: false, severity: 0, confidence: 0.9 }
+        "nsfw": { triggered: true, severity: 100, confidence: 1.0 },
+        "violence": { triggered: true, severity: 100, confidence: 1.0 },
+        "hateSpeech": { triggered: true, severity: 100, confidence: 1.0 }
       },
-      explanation: "Image analyzed via Aegis Visual Fallback. No obvious violations found in pixels. (Aegis Local Fallback)",
-      needsHumanReview: false,
-      aiModel: "aegis-local-v1",
+      explanation: "Image analysis was interrupted or blocked. Flagged for mandatory human review to ensure safety. (Aegis Local Safety Fallback)",
+      needsHumanReview: true,
+      aiModel: "aegis-local-safety-v1",
     };
   }
 }
-

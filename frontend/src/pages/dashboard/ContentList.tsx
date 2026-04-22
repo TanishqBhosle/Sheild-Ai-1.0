@@ -3,31 +3,34 @@ import { motion } from 'framer-motion';
 import { api } from '../../lib/api';
 import { db } from '../../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
-import { useAuth } from '../../app/providers/AuthProvider';
 import { getDecisionBadgeClass, formatTimeAgo } from '../../lib/utils';
-import { FileText, Filter, Search } from 'lucide-react';
+import { FileText, ShieldAlert, Clock, CheckCircle2, XCircle, ListFilter } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function ContentList() {
-  const { orgId } = useAuth();
   const [results, setResults] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
+  const [filter, setFilter] = useState('all');
+
+  const tabs = [
+    { id: 'all', label: 'All', icon: <ListFilter className="w-3 h-3" /> },
+    { id: 'approved', label: 'Approved', icon: <CheckCircle2 className="w-3 h-3" /> },
+    { id: 'rejected', label: 'Rejected', icon: <XCircle className="w-3 h-3" /> },
+    { id: 'flagged', label: 'Flagged', icon: <ShieldAlert className="w-3 h-3" /> },
+    { id: 'needs_human_review', label: 'Review', icon: <Clock className="w-3 h-3" /> },
+  ];
 
   useEffect(() => {
-    if (!orgId) return;
-
-    const constraints: Parameters<typeof query>[1][] = [];
-    if (filter) {
-      constraints.push(where('decision', '==', filter));
+    let q;
+    const resultsRef = collection(db, "moderation_results");
+    
+    if (filter === 'all') {
+      q = query(resultsRef, orderBy('createdAt', 'desc'), limit(50));
+    } else if (filter === 'needs_human_review') {
+      q = query(resultsRef, where('needsHumanReview', '==', true), orderBy('createdAt', 'desc'), limit(50));
+    } else {
+      q = query(resultsRef, where('decision', '==', filter), orderBy('createdAt', 'desc'), limit(50));
     }
-    constraints.push(orderBy('createdAt', 'desc'));
-    constraints.push(limit(50));
-
-    const q = query(
-      collection(db, `organizations/${orgId}/moderation_results`),
-      ...constraints
-    );
 
     const unsub = onSnapshot(q, (snap) => {
       setResults(snap.docs.map(doc => ({ resultId: doc.id, ...doc.data() })));
@@ -38,16 +41,17 @@ export default function ContentList() {
     });
 
     return unsub;
-  }, [orgId, filter]);
+  }, [filter]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-aegis-text flex items-center gap-2"><FileText className="w-5 h-5 text-aegis-accent" />Content</h2>
         <div className="flex items-center gap-2">
-          {['', 'approved', 'rejected', 'flagged', 'needs_human_review'].map(f => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1 text-xs rounded-lg transition-all ${filter === f ? 'bg-aegis-accent/15 text-aegis-accent' : 'text-aegis-text3 hover:bg-aegis-bg3'}`}>
-              {f || 'All'}
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setFilter(tab.id)}
+              className={`flex-none flex items-center gap-1.5 py-1.5 px-3 rounded-md text-[10px] font-bold transition-all whitespace-nowrap ${filter === tab.id ? 'bg-aegis-bg3 text-white shadow-lg' : 'text-aegis-text3 hover:text-white'}`}>
+              {tab.icon} {tab.label}
             </button>
           ))}
         </div>

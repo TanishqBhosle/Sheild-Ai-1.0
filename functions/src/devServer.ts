@@ -19,7 +19,6 @@ if (!admin.apps.length) {
 // Import middleware
 import { authMiddleware } from "./middleware/authMiddleware";
 import { rateLimiter } from "./middleware/rateLimiter";
-import { orgValidator } from "./middleware/orgValidator";
 import { requireRole } from "./middleware/rbac";
 
 // Import routes
@@ -45,17 +44,17 @@ app.get("/v1/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString(), version: "1.0.0" });
 });
 
-// Auth routes (no auth middleware for signup)
-app.use("/v1/auth", authRoutes);
+// Auth routes
+app.use("/v1/auth", authRoutes); 
 
 // All other routes require auth
-app.use("/v1/moderate", authMiddleware, orgValidator, rateLimiter, moderateRoutes);
-app.use("/v1/results", authMiddleware, orgValidator, resultsRoutes);
-app.use("/v1/policies", authMiddleware, orgValidator, requireRole("org_admin", "org_owner", "platform_admin"), policiesRoutes);
-app.use("/v1/webhooks", authMiddleware, orgValidator, requireRole("org_admin", "org_owner", "platform_admin"), webhooksRoutes);
-app.use("/v1/dashboard", authMiddleware, orgValidator, dashboardRoutes);
-app.use("/v1/api-keys", authMiddleware, orgValidator, requireRole("org_admin", "org_owner", "platform_admin"), apikeysRoutes);
-app.use("/v1/moderator", authMiddleware, orgValidator, requireRole("moderator", "org_admin", "org_owner", "platform_admin"), moderatorRoutes);
+app.use("/v1/moderate", authMiddleware, rateLimiter, moderateRoutes);
+app.use("/v1/results", authMiddleware, resultsRoutes);
+app.use("/v1/policies", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), policiesRoutes);
+app.use("/v1/webhooks", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), webhooksRoutes);
+app.use("/v1/dashboard", authMiddleware, dashboardRoutes);
+app.use("/v1/api-keys", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), apikeysRoutes);
+app.use("/v1/moderator", authMiddleware, requireRole("moderator", "org_admin", "org_owner", "platform_admin"), moderatorRoutes);
 app.use("/v1/admin", authMiddleware, requireRole("platform_admin"), adminRoutes);
 
 // 404 handler

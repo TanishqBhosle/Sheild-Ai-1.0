@@ -6,13 +6,13 @@ import { runVideoPipeline } from "../ai/pipelines/videoPipeline";
 import { Content, Policy } from "../types";
 import { incrementUsage } from "../utils/firestoreHelpers";
 
-export async function processAsyncModeration(contentId: string, orgId: string): Promise<void> {
+export async function processAsyncModeration(contentId: string): Promise<void> {
   const db = getFirestore();
-  const contentRef = db.doc(`organizations/${orgId}/content/${contentId}`);
+  const contentRef = db.doc(`content/${contentId}`);
   const contentDoc = await contentRef.get();
 
   if (!contentDoc.exists) {
-    console.error(`Content ${contentId} not found for org ${orgId}`);
+    console.error(`Content ${contentId} not found`);
     return;
   }
 
@@ -24,7 +24,7 @@ export async function processAsyncModeration(contentId: string, orgId: string): 
   // Load policy if specified
   let policy: Policy | null = null;
   if (content.policyId) {
-    const policyDoc = await db.doc(`organizations/${orgId}/policies/${content.policyId}`).get();
+    const policyDoc = await db.doc(`policies/${content.policyId}`).get();
     if (policyDoc.exists) {
       policy = policyDoc.data() as Policy;
     }
@@ -61,14 +61,20 @@ export async function processAsyncModeration(contentId: string, orgId: string): 
     const processingMs = Date.now() - startTime;
 
     // Write moderation result
-    const resultRef = db.collection(`organizations/${orgId}/moderation_results`).doc();
+    const resultRef = db.collection("moderation_results").doc();
     const batch = db.batch();
+
+    // Map decision to display status for moderator panel
+    let status: "Approved" | "Flagged" | "Rejected" = "Approved";
+    if (result.decision === "rejected") status = "Rejected";
+    else if (result.decision === "flagged" || result.needsHumanReview) status = "Flagged";
 
     batch.set(resultRef, {
       resultId: resultRef.id,
       contentId,
-      orgId,
       decision: result.decision,
+      status,           // Moderator panel display status
+      type: content.type, // Content type for display
       severity: result.severity,
       confidence: result.confidence,
       categories: result.categories,
@@ -76,11 +82,12 @@ export async function processAsyncModeration(contentId: string, orgId: string): 
       aiModel: result.aiModel,
       promptVersion: "1.0",
       processingMs,
-      needsHumanReview: result.needsHumanReview,
+      needsHumanReview: result.needsHumanReview || status === "Flagged",
+      submittedBy: content.submittedBy || "",
       createdAt: Timestamp.now(),
     });
 
-    const newStatus = result.needsHumanReview ? "queued_for_review" : "completed";
+    const newStatus = (result.needsHumanReview || status === "Flagged") ? "queued_for_review" : "completed";
     batch.update(contentRef, {
       status: newStatus,
       processedAt: Timestamp.now(),
@@ -88,7 +95,7 @@ export async function processAsyncModeration(contentId: string, orgId: string): 
     });
 
     await batch.commit();
-    await incrementUsage(orgId, content.type);
+    await incrementUsage(content.type);
 
   } catch (err) {
     console.error(`Async moderation failed for ${contentId}:`, err);

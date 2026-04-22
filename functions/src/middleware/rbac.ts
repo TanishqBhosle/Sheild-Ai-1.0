@@ -6,7 +6,7 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
   org_owner: 80,
   org_admin: 60,
   moderator: 40,
-  viewer: 20,
+  user: 20,
   api_key: 10,
 };
 

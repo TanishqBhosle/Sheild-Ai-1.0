@@ -3,46 +3,44 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { api } from '../../lib/api';
 import { db } from '../../lib/firebase';
-import { doc, onSnapshot, collection, query, where, limit } from 'firebase/firestore';
-import { useAuth } from '../../app/providers/AuthProvider';
+import { doc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { getDecisionBadgeClass, getSeverityColor } from '../../lib/utils';
 import { CATEGORIES } from '../../constants/categories';
 
 export default function ContentDetail() {
   const { id } = useParams<{ id: string }>();
-  const { orgId } = useAuth();
-  const [content, setContent] = useState<Record<string, unknown> | null>(null);
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [content, setContent] = useState<any>(null);
+  const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id || !orgId) return;
+    if (!id) return;
 
-    // Listen to content doc
-    const contentUnsub = onSnapshot(doc(db, `organizations/${orgId}/content/${id}`), (snap) => {
+    const contentUnsub = onSnapshot(doc(db, `content/${id}`), (snap) => {
       if (snap.exists()) setContent(snap.data());
-      setLoading(false);
     });
 
-    // Listen to result doc
-    const q = query(
-      collection(db, `organizations/${orgId}/moderation_results`),
+    const resultsQuery = query(
+      collection(db, "moderation_results"),
       where('contentId', '==', id),
-      limit(1)
+      orderBy('createdAt', 'desc')
     );
-    const resultUnsub = onSnapshot(q, (snap) => {
-      if (!snap.empty) setResult(snap.docs[0].data());
+
+    const resultsUnsub = onSnapshot(resultsQuery, (snap) => {
+      setResults(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+      setLoading(false);
     });
 
     return () => {
       contentUnsub();
-      resultUnsub();
+      resultsUnsub();
     };
-  }, [id, orgId]);
+  }, [id]);
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-2 border-aegis-accent border-t-transparent rounded-full animate-spin" /></div>;
   if (!content) return <p className="text-aegis-text3 text-center py-20">Content not found</p>;
 
+  const result = results[0];
   const categories = (result?.categories || {}) as Record<string, { triggered: boolean; severity: number; confidence: number }>;
   const severity = (result?.severity as number) || 0;
 

@@ -52,30 +52,43 @@ Respond with ONLY valid JSON in this exact format:
 
 export function buildImagePrompt(policy?: Policy | null): string {
   const enabledCategories = policy?.categories?.filter(c => c.enabled) || getDefaultCategories();
-  const categoryList = enabledCategories.map(c => c.name).join(", ");
+  const categoryList = enabledCategories.map(c =>
+    `- ${c.name} (sensitivity: ${c.sensitivity}/100)`
+  ).join("\n");
 
-  return `You are Aegis AI, analyzing an image for content moderation violations.
+  return `You are Aegis AI, a specialized visual moderation engine. Analyze the provided image for the following policy categories:
+${categoryList}
 
-Check for these categories: ${categoryList}
+SCORING RULES:
+- severity: 0-100 integer (0 = safe, 100 = extreme violation)
+- confidence: 0.0-1.0 float
+- decision: 
+    - "approved" if ALL categories severity < 20
+    - "rejected" if ANY category severity > 70
+    - "flagged" if ANY category severity 20-70
+    - "needs_human_review" if you are uncertain (confidence < 0.6)
 
 Respond with ONLY valid JSON:
 {
   "decision": "approved" | "rejected" | "flagged" | "needs_human_review",
-  "severity": <0-100>,
-  "confidence": <0.0-1.0>,
-  "categories": { "<name>": { "triggered": <bool>, "severity": <0-100>, "confidence": <0-1> } },
-  "explanation": "<brief explanation>"
+  "severity": <max_severity>,
+  "confidence": <mean_confidence>,
+  "categories": { 
+    "<name>": { "triggered": <bool>, "severity": <0-100>, "confidence": <0-1> } 
+  },
+  "explanation": "<detailed visual reasoning for the decision>"
 }`;
 }
 
 function getDefaultCategories(): PolicyCategory[] {
   return [
-    { name: "hateSpeech", enabled: true, sensitivity: 70, alwaysReview: false },
-    { name: "harassment", enabled: true, sensitivity: 70, alwaysReview: false },
-    { name: "violence", enabled: true, sensitivity: 70, alwaysReview: false },
-    { name: "nsfw", enabled: true, sensitivity: 80, alwaysReview: false },
-    { name: "spam", enabled: true, sensitivity: 50, alwaysReview: false },
-    { name: "selfHarm", enabled: true, sensitivity: 90, alwaysReview: true },
-    { name: "misinformation", enabled: true, sensitivity: 60, alwaysReview: false },
+    { name: "hateSpeech", enabled: true, sensitivity: 85, alwaysReview: false },
+    { name: "harassment", enabled: true, sensitivity: 80, alwaysReview: false },
+    { name: "violence", enabled: true, sensitivity: 90, alwaysReview: false },
+    { name: "spam", enabled: true, sensitivity: 60, alwaysReview: false },
+    { name: "nsfw", enabled: true, sensitivity: 95, alwaysReview: false },
+    { name: "illegalContent", enabled: true, sensitivity: 95, alwaysReview: true },
+    { name: "selfHarm", enabled: true, sensitivity: 95, alwaysReview: true },
   ];
 }
+

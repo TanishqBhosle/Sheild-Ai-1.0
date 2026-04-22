@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../../lib/api';
-import { useAuth } from '../../app/providers/AuthProvider';
+import { db } from '../../lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { Users, Shield, User as UserIcon, Check, Loader2 } from 'lucide-react';
 
 export default function UserManagement() {
-  const { orgId } = useAuth();
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
 
   const loadMembers = async () => {
     try {
-      const res = await api.get<{ members: any[] }>('/v1/auth/members');
-      setMembers(res.members || []);
+      const snap = await getDocs(collection(db, "users"));
+      setMembers(snap.docs.map(d => ({ ...d.data(), userId: d.id })));
     } catch (err) {
       console.error(err);
     } finally {
@@ -21,12 +21,12 @@ export default function UserManagement() {
     }
   };
 
-  useEffect(() => { loadMembers(); }, [orgId]);
+  useEffect(() => { loadMembers(); }, []);
 
   const updateRole = async (uid: string, newRole: string) => {
     setUpdating(uid);
     try {
-      await api.post('/v1/auth/set-claims', { uid, role: newRole });
+      await api.post('/v1/auth/set-claims', { userId: uid, role: newRole });
       await loadMembers(); // Refresh list
     } catch (err) {
       console.error(err);
@@ -90,12 +90,12 @@ export default function UserManagement() {
                     )}
                     {(m.role === 'moderator' || m.role === 'platform_admin') && (
                       <button 
-                        onClick={() => updateRole(m.userId, 'viewer')}
+                        onClick={() => updateRole(m.userId, 'user')}
                         disabled={updating === m.userId}
                         className="btn-ghost px-3 py-1.5 text-xs text-aegis-text3 border border-aegis-border hover:bg-aegis-bg3 flex items-center gap-1.5"
                       >
                         {updating === m.userId ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserIcon className="w-3 h-3" />}
-                        Demote to Viewer
+                        Demote to User
                       </button>
                     )}
                   </div>

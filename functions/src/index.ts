@@ -36,8 +36,9 @@ app.get("/v1/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString(), version: "1.0.0" });
 });
 
-// Auth routes (no auth middleware for signup)
-app.use("/v1/auth", authRoutes);
+// Auth routes
+app.use("/v1/auth", authRoutes); 
+
 
 // All other routes require auth
 app.use("/v1/moderate", authMiddleware, orgValidator, rateLimiter, moderateRoutes);
@@ -47,6 +48,7 @@ app.use("/v1/webhooks", authMiddleware, orgValidator, requireRole("org_admin", "
 app.use("/v1/dashboard", authMiddleware, orgValidator, dashboardRoutes);
 app.use("/v1/api-keys", authMiddleware, orgValidator, requireRole("org_admin", "org_owner", "platform_admin"), apikeysRoutes);
 app.use("/v1/moderator", authMiddleware, orgValidator, requireRole("moderator", "org_admin", "org_owner", "platform_admin"), moderatorRoutes);
+app.use("/api/moderation", authMiddleware, orgValidator, requireRole("moderator", "org_admin", "org_owner", "platform_admin"), moderatorRoutes);
 app.use("/v1/admin", authMiddleware, requireRole("platform_admin"), adminRoutes);
 
 // 404 handler

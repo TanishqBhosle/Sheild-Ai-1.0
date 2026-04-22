@@ -2,14 +2,15 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { logout } from '../../lib/auth';
-import { LayoutDashboard, FileText, BarChart3, LogOut, ChevronLeft, Shield, Key } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, LogOut, ChevronLeft } from 'lucide-react';
+import Logo from '../common/Logo';
+import ThemeToggle from '../common/ThemeToggle';
 import { useState } from 'react';
 import { PLANS } from '../../constants/plans';
 
 const NAV_ITEMS = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { path: '/dashboard/content', icon: FileText, label: 'Content' },
-  { path: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
 ];
 
 export default function DashboardLayout() {
@@ -23,14 +24,17 @@ export default function DashboardLayout() {
       <motion.aside animate={{ width: collapsed ? 64 : 240 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className="bg-aegis-bg2 border-r border-aegis-border flex flex-col overflow-hidden shrink-0">
         <div className="p-4 border-b border-aegis-border flex items-center justify-between min-h-[56px]">
-          {!collapsed && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
-              <span className="text-aegis-text font-bold text-sm">⚔ Aegis AI</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-aegis-accent/20 text-aegis-accent border border-aegis-accent/40">
-                {planInfo.name.toUpperCase()}
-              </span>
-            </motion.div>
-          )}
+          <div className="flex items-center gap-2">
+            <Logo size="sm" />
+            {!collapsed && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
+                <span className="text-aegis-text font-bold text-sm">Aegis AI</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-aegis-accent/20 text-aegis-accent border border-aegis-accent/40">
+                  {planInfo.name.toUpperCase()}
+                </span>
+              </motion.div>
+            )}
+          </div>
           <button onClick={() => setCollapsed(!collapsed)} className="p-1 hover:bg-aegis-bg3 rounded transition-colors">
             <ChevronLeft className={`w-4 h-4 text-aegis-text3 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
           </button>
@@ -56,7 +60,7 @@ export default function DashboardLayout() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-aegis-text truncate">{user?.email}</p>
-                <p className="text-[10px] text-aegis-text3">{role === 'viewer' ? 'User' : role}</p>
+                <p className="text-[10px] text-aegis-text3">{role === 'user' ? 'User' : role}</p>
               </div>
             </div>
           )}
@@ -71,6 +75,7 @@ export default function DashboardLayout() {
         <header className="h-14 bg-aegis-bg2 border-b border-aegis-border flex items-center justify-between px-6 shrink-0">
           <h1 className="text-sm font-semibold text-aegis-text">Dashboard</h1>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <div className="text-xs text-aegis-text3">
               <div className="w-8 h-8 rounded-full bg-aegis-accent/20 border border-aegis-accent/40 flex items-center justify-center text-xs font-bold text-aegis-accent">
                 {user?.email?.[0]?.toUpperCase() || 'U'}

@@ -1,4 +1,4 @@
-export type UserRole = 'platform_admin' | 'org_owner' | 'org_admin' | 'moderator' | 'viewer' | 'api_key';
+export type UserRole = 'platform_admin' | 'org_owner' | 'org_admin' | 'moderator' | 'user' | 'api_key';
 export type OrgStatus = 'active' | 'suspended' | 'trial';
 export type PlanTier = 'free' | 'starter' | 'pro' | 'enterprise';
 

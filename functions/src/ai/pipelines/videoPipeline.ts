@@ -1,4 +1,4 @@
-import { getProModel } from "../geminiClient";
+import { getFlashModel } from "../geminiClient";
 import { parseAIResponse, normalizeScores } from "../scoreNormalizer";
 import { Policy, ModerationResult, CategoryScore } from "../../types";
 import { fetchMediaAsBase64 } from "../../utils/fetchMedia";
@@ -16,7 +16,7 @@ export async function runVideoPipeline(
   needsHumanReview: boolean;
   aiModel: string;
 }> {
-  const model = getProModel();
+  const model = getFlashModel();
   
   try {
     let videoBase64 = videoInput;

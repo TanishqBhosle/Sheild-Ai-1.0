@@ -5,7 +5,7 @@ import { db, storage } from '../../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, where } from 'firebase/firestore';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { formatNumber, getDecisionBadgeClass, formatTimeAgo } from '../../lib/utils';
-import { Activity, AlertTriangle, Clock, Eye, Send, Image as ImageIcon, Video, File, X } from 'lucide-react';
+import { Activity, AlertTriangle, Clock, Eye, Send, Image as ImageIcon, Video, File, X, Loader2, Zap } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface DashboardSummary {
@@ -14,116 +14,65 @@ interface DashboardSummary {
 }
 
 export default function DashboardHome() {
-  const { orgId } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [quickText, setQuickText] = useState('');
-  const [quickResult, setQuickResult] = useState<Record<string, unknown> | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [quickResult, setQuickResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!orgId) return;
-
-    // Listen for recent results
-    const resultsQuery = query(
-      collection(db, `organizations/${orgId}/moderation_results`),
+    const q = query(
+      collection(db, "moderation_results"),
       orderBy('createdAt', 'desc'),
-      limit(10)
+      limit(20)
     );
-
-    const unsubResults = onSnapshot(resultsQuery, (snap) => {
-      const results = snap.docs.map(doc => ({
-        resultId: doc.id,
-        ...doc.data()
-      })) as DashboardSummary['recentResults'];
-      
-      setSummary(prev => {
-        const base = prev || { apiCallsToday: 0, flaggedToday: 0, pendingReview: 0, avgLatencyMs: 0, recentResults: [] };
-        return {
-          ...base,
-          recentResults: results
-        };
+    const unsub = onSnapshot(q, (snap) => {
+      const results = snap.docs.map(d => ({ ...d.data(), resultId: d.id })) as any[];
+      setSummary({
+        apiCallsToday: results.length, // Mock today's count for demo
+        flaggedToday: results.filter(r => r.decision !== 'approved').length,
+        pendingReview: results.filter(r => r.needsHumanReview).length,
+        avgLatencyMs: results.length > 0 ? Math.round(results.reduce((acc, r) => acc + (r.processingMs || 0), 0) / results.length) : 0,
+        recentResults: results as any
       });
       setLoading(false);
     });
+    return unsub;
+  }, []);
 
-    // Listen for today's stats from usage_logs
-    const now = new Date();
-    const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-    
-    const statsUnsub = onSnapshot(doc(db, `organizations/${orgId}/usage_logs/${monthKey}/daily/${todayKey}`), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setSummary(prev => {
-          const base = prev || { apiCallsToday: 0, flaggedToday: 0, pendingReview: 0, avgLatencyMs: 0, recentResults: [] };
-          return {
-            ...base,
-            apiCallsToday: data.apiCalls || 0,
-          };
-        });
-      }
-    });
-
-    // Listen for pending reviews — only check needsHumanReview flag
-    // (reviewedBy might not exist as a field, so we filter client-side)
-    const pendingQuery = query(
-      collection(db, `organizations/${orgId}/moderation_results`),
-      where('needsHumanReview', '==', true)
-    );
-    const unsubPending = onSnapshot(pendingQuery, (snap) => {
-      // Client-side filter: only count items where reviewedBy is not set
-      const pending = snap.docs.filter(d => !d.data().reviewedBy);
-      setSummary(prev => {
-        const base = prev || { apiCallsToday: 0, flaggedToday: 0, pendingReview: 0, avgLatencyMs: 0, recentResults: [] };
-        return {
-          ...base,
-          pendingReview: pending.length
-        };
-      });
-    });
-
-    return () => {
-      unsubResults();
-      statsUnsub();
-      unsubPending();
-    };
-  }, [orgId]);
-
-  const handleQuickSubmit = async () => {
+  const handleQuickSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!quickText.trim() && !file) return;
-    setSubmitting(true); setQuickResult(null);
+
+    setSubmitting(true);
+    setQuickResult(null);
+
     try {
-      let payload: any = { type: 'text', text: quickText };
-      
+      let mediaUrl = quickText;
+      let type = 'text';
+
       if (file) {
-        const fileType = file.type.split('/')[0] as 'image' | 'video' | 'audio';
-        const storagePath = `orgs/${orgId}/uploads/${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, storagePath);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        
-        payload = {
-          type: fileType,
-          mediaUrl: url,
-          text: quickText || undefined,
-          async: fileType === 'video' || fileType === 'audio'
-        };
+        type = file.type.split('/')[0];
+        const storageRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
+        const uploadResult = await uploadBytes(storageRef, file);
+        mediaUrl = await getDownloadURL(uploadResult.ref);
       } else if (quickText.startsWith('http')) {
-        // Detect type from extension if possible, or default to image
-        const ext = quickText.split('.').pop()?.toLowerCase();
-        let type: any = 'image';
-        if (['mp4', 'webm', 'mov'].includes(ext || '')) type = 'video';
-        if (['mp3', 'wav', 'ogg'].includes(ext || '')) type = 'audio';
-        
-        payload = {
-          type,
-          mediaUrl: quickText,
-          async: type === 'video' || type === 'audio'
-        };
+        // Detect type from URL if possible
+        if (quickText.match(/\.(jpeg|jpg|gif|png)$/)) type = 'image';
+        else if (quickText.match(/\.(mp4|webm|ogg)$/)) type = 'video';
+        else if (quickText.match(/\.(mp3|wav|ogg)$/)) type = 'audio';
       }
+
+      const payload = {
+        type,
+        text: type === 'text' ? quickText : null,
+        content: type === 'text' ? quickText : mediaUrl,
+        mediaUrl: type === 'text' ? null : mediaUrl,
+        async: type === 'video' || type === 'audio',
+        callbackUrl: 'https://webhook.site/test'
+      };
 
       const res = await api.post<Record<string, any>>('/v1/moderate', payload);
       
@@ -131,16 +80,16 @@ export default function DashboardHome() {
         // For async, we show a "Processing" state and wait for Firestore
         setQuickResult({ status: 'processing', decision: 'processing', explanation: 'Analysing media... please wait.', severity: 0, confidence: 0 });
         
-        // Listen for the result in moderation_results collection
+        // Setup listener for the result
         const q = query(
-          collection(db, `organizations/${orgId}/moderation_results`),
-          where('contentId', '==', res.contentId)
+          collection(db, "moderation_results"),
+          where('contentId', '==', res.contentId),
+          limit(1)
         );
         
         const unsub = onSnapshot(q, (snap) => {
           if (!snap.empty) {
-            const result = snap.docs[0].data();
-            setQuickResult({ ...result, status: result.decision });
+            setQuickResult(snap.docs[0].data());
             unsub();
           }
         });
@@ -165,6 +114,57 @@ export default function DashboardHome() {
     }
   };
 
+  const [demoFilters, setDemoFilters] = useState({ mediaType: 'all', category: 'all' });
+
+  // Pre-fill demo data
+  useEffect(() => {
+    if (demoFilters.mediaType === 'all' && demoFilters.category === 'all') return;
+    
+    const samples: Record<string, Record<string, string>> = {
+      text: {
+        'Hate Speech': "I absolutely despise people from that specific ethnic group, they should be removed.",
+        'Harassment': "Stop talking you complete idiot. Nobody wants to hear your stupid opinion.",
+        'Violence': "I will find you and I will hurt you. You are not safe.",
+        'Spam': "CONGRATULATIONS! You won $1,000,000! Click here to claim now: http://scam.me/win",
+        'Illegal': "Here is how to manufacture a dangerous prohibited substance at home.",
+        'Safe': "Hello there! Hope you have a wonderful day."
+      },
+      image: { 'Safe': 'https://images.unsplash.com/photo-1454496522488-7a8e488e8606', 'Illegal': 'https://raw.githubusercontent.com/minimaxir/img-moderation-test/master/images/offensive.jpg' },
+      audio: { 'Safe': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+      video: { 'Safe': 'https://www.w3schools.com/html/mov_bbb.mp4' }
+    };
+
+    const type = demoFilters.mediaType === 'all' ? 'text' : demoFilters.mediaType;
+    const cat = demoFilters.category === 'all' ? 'Safe' : demoFilters.category;
+    
+    const sample = samples[type]?.[cat] || samples[type]?.['Safe'] || '';
+    if (sample) {
+      setQuickText(sample);
+      setFile(null); // Clear file if we are setting text/URL
+    }
+  }, [demoFilters]);
+
+  const runDemo = async () => {
+    setSubmitting(true);
+    setQuickResult(null);
+    try {
+      // For user dashboard demo, we use a special endpoint or just run a series of moderations
+      const res = await api.post<{ results: any[] }>('/v1/dashboard/run-demo', demoFilters);
+      setQuickResult({ 
+        decision: 'demo_complete', 
+        explanation: `Processed ${res.results.length} items. Check the Moderator Panel to see all results (Approved, Flagged, and Rejected).`,
+        severity: 0,
+        confidence: 1,
+        processingMs: 0
+      });
+    } catch (err: any) {
+      console.error(err);
+      setQuickResult({ decision: 'error', explanation: 'Demo failed. ' + err.message, severity: 0, confidence: 0 });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const stats = [
     { label: 'API Calls Today', value: summary?.apiCallsToday || 0, icon: Activity, color: 'text-aegis-accent', bg: 'bg-aegis-accent/10' },
     { label: 'Flagged Today', value: (summary?.recentResults || []).filter(r => r.decision === 'rejected' || r.decision === 'flagged').length, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' },
@@ -178,12 +178,16 @@ export default function DashboardHome() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-            className="stat-card">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-aegis-text3">{s.label}</span>
-              <div className={`w-8 h-8 rounded-lg ${s.bg} flex items-center justify-center`}><s.icon className={`w-4 h-4 ${s.color}`} /></div>
+            className="glass-card flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${s.bg}`}>
+              <s.icon className={`w-6 h-6 ${s.color}`} />
             </div>
-            <p className={`text-2xl font-bold ${s.color}`}>{typeof s.value === 'number' ? formatNumber(s.value) : s.value}</p>
+            <div>
+              <p className="text-xs text-aegis-text3 font-medium uppercase tracking-wider">{s.label}</p>
+              <p className="text-2xl font-bold text-aegis-text">
+                {typeof s.value === 'number' ? formatNumber(s.value) : s.value}
+              </p>
+            </div>
           </motion.div>
         ))}
       </div>
@@ -191,7 +195,52 @@ export default function DashboardHome() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Quick Submit */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card">
-          <h2 className="text-sm font-semibold text-aegis-text mb-4 flex items-center gap-2"><Send className="w-4 h-4 text-aegis-accent" />Quick Analysis</h2>
+          <div className="flex flex-col gap-3 mb-6 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-aegis-text flex items-center gap-2"><Send className="w-4 h-4 text-aegis-accent" />AI Demo Engine</h2>
+              <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-400">Custom Test Suite</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex-1 min-w-[120px]">
+                <label className="block text-[10px] uppercase text-aegis-text3 mb-1 ml-1">Media Type</label>
+                <select 
+                  value={demoFilters.mediaType} 
+                  onChange={(e) => setDemoFilters(prev => ({ ...prev, mediaType: e.target.value }))}
+                  className="w-full bg-aegis-bg3 text-aegis-text text-xs rounded-lg px-2 py-2 border border-aegis-border outline-none focus:border-emerald-500/50 transition-colors"
+                >
+                  <option value="all">All Media</option>
+                  <option value="text">Text Only</option>
+                  <option value="image">Image Only</option>
+                  <option value="audio">Audio Only</option>
+                  <option value="video">Video Only</option>
+                </select>
+              </div>
+              <div className="flex-1 min-w-[120px]">
+                <label className="block text-[10px] uppercase text-aegis-text3 mb-1 ml-1">Test Category</label>
+                <select 
+                  value={demoFilters.category} 
+                  onChange={(e) => setDemoFilters(prev => ({ ...prev, category: e.target.value }))}
+                  className="w-full bg-aegis-bg3 text-aegis-text text-xs rounded-lg px-2 py-2 border border-aegis-border outline-none focus:border-emerald-500/50 transition-colors"
+                >
+                  <option value="all">Mix All</option>
+                  <option value="Safe">Safe Content</option>
+                  <option value="Hate Speech">Hate Speech</option>
+                  <option value="Harassment">Harassment</option>
+                  <option value="Violence">Violence</option>
+                  <option value="Spam">Spam</option>
+                  <option value="Illegal">Illegal/Inappropriate</option>
+                </select>
+              </div>
+              <button 
+                onClick={runDemo} 
+                disabled={submitting}
+                className="btn-primary mt-5 bg-emerald-600 hover:bg-emerald-500 flex items-center gap-2 px-4 py-2 text-xs"
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                Run Custom Demo
+              </button>
+            </div>
+          </div>
           <textarea value={quickText} onChange={e => setQuickText(e.target.value)} className="input-field h-24 resize-none mb-3" placeholder="Paste text here or enter a media URL..." />
           
           {file && (
@@ -223,40 +272,51 @@ export default function DashboardHome() {
               </div>
               <div className="flex items-center gap-4 text-xs text-aegis-text2">
                 <span>Severity: <b className="text-aegis-text">{String(quickResult.severity)}</b></span>
-                <span>Confidence: <b className="text-aegis-text">{typeof quickResult.confidence === 'number' ? (quickResult.confidence * 100).toFixed(0) : '0'}%</b></span>
+                <span>Confidence: <b className="text-aegis-text">{String(Math.round(quickResult.confidence * 100))}%</b></span>
               </div>
-              {Boolean(quickResult.explanation) && <p className={`text-xs mt-2 ${quickResult.decision === 'error' ? 'text-red-400' : 'text-aegis-text3'}`}>{String(quickResult.explanation)}</p>}
+              <p className="text-xs text-aegis-text3 mt-2 line-clamp-2">{quickResult.explanation}</p>
             </motion.div>
           )}
         </motion.div>
 
-        {/* Recent Results */}
+        {/* Recent Activity */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="glass-card">
-          <h2 className="text-sm font-semibold text-aegis-text mb-4">Recent Results</h2>
-          {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-12 bg-aegis-bg3 rounded animate-pulse" />)}</div>
-          ) : (
-            <div className="space-y-2 max-h-[320px] overflow-y-auto">
-              {(summary?.recentResults || []).map((r, i) => (
-                <motion.div key={r.resultId || i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                  className="flex items-center justify-between p-3 rounded-lg bg-aegis-bg hover:bg-aegis-bg3 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <span className={`badge ${getDecisionBadgeClass(r.decision)}`}>{r.decision}</span>
-                    <span className="text-xs text-aegis-text3 font-mono">{r.contentId}</span>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-aegis-text flex items-center gap-2"><Clock className="w-4 h-4 text-emerald-400" />Recent Activity</h2>
+            <button className="text-[10px] uppercase tracking-wider font-bold text-aegis-text3 hover:text-white transition-colors">View All</button>
+          </div>
+          <div className="space-y-3">
+            {summary?.recentResults.map((r, i) => (
+              <div key={r.resultId} className="flex items-center justify-between p-2 rounded-lg bg-aegis-bg3/50 border border-aegis-border/50">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${getDecisionBadgeClass(r.decision)} bg-opacity-20`}>
+                    {r.decision === 'rejected' ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
                   </div>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-aegis-text3">{r.severity}/100</span>
-                    <span className="text-aegis-text3">{r.processingMs}ms</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-aegis-text truncate">Content {r.contentId.substring(0, 8)}</p>
+                    <p className="text-[10px] text-aegis-text3">{formatTimeAgo(r.createdAt as any)}</p>
                   </div>
-                </motion.div>
-              ))}
-              {(!summary?.recentResults || summary.recentResults.length === 0) && (
-                <p className="text-sm text-aegis-text3 text-center py-8">No results yet. Try the Quick Analysis!</p>
-              )}
-            </div>
-          )}
+                </div>
+                <div className="text-right">
+                  <p className={`text-[10px] font-bold uppercase ${getDecisionBadgeClass(r.decision)}`}>{r.decision}</p>
+                  <p className="text-[10px] text-aegis-text3">{r.severity}% Sev</p>
+                </div>
+              </div>
+            ))}
+            {(!summary || summary.recentResults.length === 0) && (
+              <div className="text-center py-12 text-aegis-text3 text-sm">No recent activity. Try running a quick analysis.</div>
+            )}
+          </div>
         </motion.div>
       </div>
     </div>
+  );
+}
+
+function Check({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
   );
 }

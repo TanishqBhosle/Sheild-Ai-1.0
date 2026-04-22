@@ -7,22 +7,20 @@ function db() {
 }
 
 export async function incrementUsage(
-  orgId: string,
   contentType: string
 ): Promise<void> {
   const now = new Date();
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const dayKey = `${monthKey}-${String(now.getDate()).padStart(2, "0")}`;
 
-  const monthRef = db().doc(`organizations/${orgId}/usage_logs/${monthKey}`);
-  const dayRef = db().doc(`organizations/${orgId}/usage_logs/${monthKey}/daily/${dayKey}`);
+  const monthRef = db().doc(`usage_metrics/monthly_${monthKey}`);
+  const dayRef = db().doc(`usage_metrics/daily_${dayKey}`);
 
   const typeField = `${contentType}Requests` as string;
 
   const batch = db().batch();
 
   batch.set(monthRef, {
-    orgId,
     period: monthKey,
     apiCalls: FieldValue.increment(1),
     [typeField]: FieldValue.increment(1),
@@ -30,7 +28,6 @@ export async function incrementUsage(
   }, { merge: true });
 
   batch.set(dayRef, {
-    orgId,
     date: dayKey,
     period: monthKey,
     apiCalls: FieldValue.increment(1),
@@ -42,7 +39,7 @@ export async function incrementUsage(
 }
 
 export async function writeAuditLog(params: {
-  orgId: string;
+  orgId?: string; // Optional in flat architecture
   actor: string;
   actorEmail: string;
   action: string;
@@ -53,10 +50,16 @@ export async function writeAuditLog(params: {
   ipAddress?: string;
   userAgent?: string;
 }): Promise<void> {
-  const logRef = db().collection(`organizations/${params.orgId}/audit_logs`).doc();
+  const logRef = db().collection("audit_logs").doc();
+  
+  // Filter out undefined properties to prevent Firestore errors
+  const cleanData = Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v !== undefined)
+  );
+
   await logRef.set({
     logId: logRef.id,
-    ...params,
+    ...cleanData,
     timestamp: Timestamp.now(),
   });
 }

@@ -3,7 +3,35 @@
 @tailwind utilities;
 
 @layer base {
-  * { @apply box-border; }
+  :root {
+    --aegis-bg: #f8fafc;
+    --aegis-bg2: #ffffff;
+    --aegis-bg3: #f1f5f9;
+    --aegis-surface: #ffffff;
+    --aegis-border: #e2e8f0;
+    --aegis-border2: #cbd5e1;
+    --aegis-text: #0f172a;
+    --aegis-text2: #334155;
+    --aegis-text3: #64748b;
+    --aegis-accent: #6366f1;
+    --aegis-accent2: #4f46e5;
+  }
+
+  .dark {
+    --aegis-bg: #0f1117;
+    --aegis-bg2: #161b27;
+    --aegis-bg3: #1e2535;
+    --aegis-surface: #212840;
+    --aegis-border: #2d3650;
+    --aegis-border2: #3d4a6a;
+    --aegis-text: #e8ecf4;
+    --aegis-text2: #a8b4cc;
+    --aegis-text3: #6b7a99;
+    --aegis-accent: #6366f1;
+    --aegis-accent2: #4f46e5;
+  }
+
+  * { @apply box-border transition-colors duration-200; }
   body { @apply bg-aegis-bg text-aegis-text font-sans antialiased; }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { @apply bg-aegis-bg2; }
@@ -13,43 +41,43 @@
 
 @layer components {
   .glass-card {
-    @apply bg-aegis-bg2 border border-aegis-border rounded-xl p-6;
+    @apply bg-white/70 dark:bg-slate-900/70 border border-aegis-border rounded-xl p-6 shadow-sm;
     backdrop-filter: blur(12px);
   }
   .stat-card {
-    @apply bg-aegis-bg3 border border-aegis-border rounded-lg p-4 transition-all duration-200;
+    @apply bg-aegis-bg2 border border-aegis-border rounded-lg p-4 transition-all duration-200 shadow-sm;
   }
   .stat-card:hover {
-    @apply border-aegis-border2 shadow-lg;
+    @apply border-aegis-border2 shadow-md;
     transform: translateY(-1px);
   }
   .btn-primary {
     @apply px-4 py-2 bg-aegis-accent text-white rounded-lg font-semibold text-sm
-           hover:bg-aegis-accent2 transition-all duration-200 active:scale-95;
+           hover:bg-aegis-accent2 transition-all duration-200 active:scale-95 shadow-lg shadow-indigo-500/20;
   }
   .btn-ghost {
     @apply px-4 py-2 bg-transparent text-aegis-text2 rounded-lg font-medium text-sm
            border border-aegis-border hover:bg-aegis-bg3 hover:text-aegis-text transition-all duration-200;
   }
   .btn-danger {
-    @apply px-4 py-2 bg-red-500/15 text-red-400 rounded-lg font-semibold text-sm
-           border border-red-500/30 hover:bg-red-500/25 transition-all duration-200;
+    @apply px-4 py-2 bg-red-500/10 text-red-500 dark:text-red-400 rounded-lg font-semibold text-sm
+           border border-red-500/20 hover:bg-red-500/20 transition-all duration-200;
   }
   .btn-success {
-    @apply px-4 py-2 bg-emerald-500/15 text-emerald-400 rounded-lg font-semibold text-sm
-           border border-emerald-500/30 hover:bg-emerald-500/25 transition-all duration-200;
+    @apply px-4 py-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg font-semibold text-sm
+           border border-emerald-500/20 hover:bg-emerald-500/20 transition-all duration-200;
   }
   .input-field {
     @apply w-full px-3 py-2 bg-aegis-bg3 border border-aegis-border rounded-lg text-aegis-text text-sm
-           placeholder:text-aegis-text3 focus:outline-none focus:border-aegis-accent focus:ring-1 focus:ring-aegis-accent/50
+           placeholder:text-aegis-text3 focus:outline-none focus:border-aegis-accent focus:ring-1 focus:ring-indigo-500/50
            transition-all duration-200;
   }
   .badge {
-    @apply px-2.5 py-0.5 rounded-full text-xs font-semibold font-mono;
+    @apply px-2.5 py-0.5 rounded-full text-[10px] font-bold font-sans uppercase tracking-wider;
   }
-  .badge-approved { @apply bg-emerald-500/15 text-emerald-400 border border-emerald-500/30; }
-  .badge-rejected { @apply bg-red-500/10 text-red-400 border border-red-500/30; }
-  .badge-flagged { @apply bg-amber-500/10 text-amber-400 border border-amber-500/30; }
-  .badge-review { @apply bg-purple-500/10 text-purple-400 border border-purple-500/30; }
-  .badge-pending { @apply bg-blue-500/10 text-blue-400 border border-blue-500/30; }
+  .badge-approved { @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20; }
+  .badge-rejected { @apply bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/20; }
+  .badge-flagged { @apply bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20; }
+  .badge-review { @apply bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20; }
+  .badge-pending { @apply bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20; }
 }

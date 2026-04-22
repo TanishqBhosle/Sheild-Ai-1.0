@@ -25,41 +25,45 @@ export function normalizeScores(
   let hasAlwaysReviewTrigger = false;
 
   for (const [name, score] of Object.entries(raw.categories || {})) {
-    const sensitivity = sensitivityMap[name] ?? 70;
+    const sensitivity = sensitivityMap[name] ?? 100; // Default to 100% sensitivity
     const weightedSeverity = Math.round(score.severity * (sensitivity / 100));
+    
+    // Safety: use the higher of the two values
+    const finalCatSeverity = Math.max(score.severity, weightedSeverity);
 
     categories[name] = {
-      triggered: score.triggered || weightedSeverity > 50,
-      severity: weightedSeverity,
+      triggered: score.triggered || finalCatSeverity >= 20,
+      severity: finalCatSeverity,
       confidence: Math.round(score.confidence * 100) / 100,
     };
 
-    if (weightedSeverity > maxSeverity) {
-      maxSeverity = weightedSeverity;
+    if (finalCatSeverity > maxSeverity) {
+      maxSeverity = finalCatSeverity;
     }
   }
 
-  // Calibrate overall severity and confidence
-  const severity = Math.min(100, Math.max(0, Math.round(raw.severity)));
+  // Calibrate overall severity (use the maximum of category severities if it's higher than the overall)
+  const baseSeverity = Math.min(100, Math.max(0, Math.round(raw.severity)));
+  const severity = Math.max(baseSeverity, maxSeverity);
   const confidence = Math.min(1, Math.max(0, Math.round(raw.confidence * 100) / 100));
 
   // Determine final decision based on thresholds
   let decision: ModerationResult["decision"];
   let needsHumanReview = false;
 
-  if (confidence < 0.60 || hasAlwaysReviewTrigger) {
+  // SAFETY-FIRST THRESHOLDS
+  if (confidence < 0.70) {
     decision = "needs_human_review";
     needsHumanReview = true;
-  } else if (severity > 85 && confidence > 0.95) {
+  } else if (severity >= 60) {
     decision = "rejected";
-  } else if (severity < 15 && confidence > 0.95) {
+  } else if (severity <= 10 && confidence > 0.98) {
+    // Only auto-approve if extremely safe and extremely confident
     decision = "approved";
   } else {
-    // Anything else is flagged for review if confidence is not extremely high
-    decision = severity > 50 ? "flagged" : "needs_human_review";
-    if (confidence < 0.98) {
-      needsHumanReview = true;
-    }
+    // Everything else requires eyes
+    decision = "flagged";
+    needsHumanReview = true;
   }
 
   return {

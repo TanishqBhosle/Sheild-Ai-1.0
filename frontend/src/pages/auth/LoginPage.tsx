@@ -2,13 +2,18 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { loginWithEmail, loginWithGoogle } from '../../lib/auth';
-import { Shield, Mail, Lock, Chrome } from 'lucide-react';
+import { api } from '../../lib/api';
+import { auth } from '../../lib/firebase';
+import { useAuth } from '../../app/providers/AuthProvider';
+import Logo from '../../components/common/Logo';
+import { Mail, Lock, Chrome } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { refreshAuth } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -16,6 +21,7 @@ export default function LoginPage() {
     setError(''); setLoading(true);
     try { 
       await loginWithEmail(email, password); 
+      refreshAuth();
       // The AppRouter will handle redirection once the auth state updates
     }
     catch (err: unknown) { setError((err as Error).message); }
@@ -26,6 +32,11 @@ export default function LoginPage() {
     setError(''); setLoading(true);
     try { 
       await loginWithGoogle(); 
+      // Ensure user has an organization and claims
+      await api.post('/v1/auth/onboarding');
+      // Refresh token to pick up new claims
+      const user = auth.currentUser;
+      if (user) await user.getIdToken(true);
       // The AppRouter will handle redirection once the auth state updates
     }
     catch (err: unknown) { setError((err as Error).message); }
@@ -37,10 +48,7 @@ export default function LoginPage() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
         className="w-full max-w-md">
         <div className="text-center mb-8">
-          <motion.div initial={{ scale: 0.5 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300 }}
-            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-aegis-accent to-purple-500 mb-4">
-            <Shield className="w-8 h-8 text-white" />
-          </motion.div>
+          <Logo size="lg" className="mb-4" />
           <h1 className="text-2xl font-bold text-aegis-text">Welcome back</h1>
           <p className="text-aegis-text3 text-sm mt-1">Sign in to Aegis AI</p>
         </div>

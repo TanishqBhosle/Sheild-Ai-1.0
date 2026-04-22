@@ -5,8 +5,13 @@ import { LayoutDashboard, Building2, Activity, AlertTriangle } from 'lucide-reac
 import { formatNumber } from '../../lib/utils';
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
-  useEffect(() => { api.get<Record<string, unknown>>('/v1/admin/platform-stats').then(setStats).catch(console.error); }, []);
+  const [stats, setStats] = useState<Record<string, any> | null>(null);
+
+  useEffect(() => { 
+    api.get<Record<string, any>>('/v1/admin/platform-stats')
+      .then(setStats)
+      .catch(console.error); 
+  }, []);
 
   const cards = [
     { label: 'Total Organisations', value: stats?.totalOrgs || 0, icon: Building2, color: 'text-purple-400', bg: 'bg-purple-500/10' },
@@ -16,7 +21,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-aegis-text flex items-center gap-2"><LayoutDashboard className="w-5 h-5 text-purple-400" />Platform Overview</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-aegis-text flex items-center gap-2">
+          <LayoutDashboard className="w-5 h-5 text-purple-400" />Platform Overview
+        </h2>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {cards.map((c, i) => (
           <motion.div key={c.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="stat-card">
@@ -28,12 +38,16 @@ export default function AdminDashboard() {
           </motion.div>
         ))}
       </div>
+
       {Boolean(stats?.planBreakdown) && (
         <div className="glass-card">
-          <p className="text-xs text-aegis-text3 mb-3">Plan Distribution</p>
-          <div className="flex items-center gap-4">
+          <p className="text-xs text-aegis-text3 mb-4 font-bold uppercase tracking-widest">Plan Distribution</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
             {Object.entries((stats?.planBreakdown || {}) as Record<string, number>).map(([plan, count]) => (
-              <div key={plan} className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-aegis-accent" /><span className="text-sm text-aegis-text">{plan}: {count}</span></div>
+              <div key={plan} className="flex flex-col gap-1">
+                <span className="text-[10px] text-aegis-text3 uppercase font-bold">{plan}</span>
+                <span className="text-xl font-bold text-aegis-text">{count} <span className="text-xs text-aegis-text3 font-normal">Orgs</span></span>
+              </div>
             ))}
           </div>
         </div>

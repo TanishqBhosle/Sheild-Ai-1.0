@@ -1,13 +1,16 @@
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './app/providers/AuthProvider';
+import { ThemeProvider } from './app/providers/ThemeProvider';
 import { AppRouter } from './app/Router';
 
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRouter />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppRouter />
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

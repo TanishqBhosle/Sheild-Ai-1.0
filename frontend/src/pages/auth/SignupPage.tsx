@@ -2,18 +2,21 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { signup } from '../../lib/auth';
-import { Shield, Mail, Lock, User, Users, Settings, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../../app/providers/AuthProvider';
+import Logo from '../../components/common/Logo';
+import { Mail, Lock, User, Users, Settings, ShieldCheck } from 'lucide-react';
 
 const ROLES = [
-  { key: 'viewer', label: 'User', icon: User, desc: 'Submit & view moderation results', color: 'aegis-accent', gradient: 'from-indigo-500 to-blue-500' },
+  { key: 'user', label: 'User', icon: User, desc: 'Submit & view moderation results', color: 'aegis-accent', gradient: 'from-indigo-500 to-blue-500' },
   { key: 'moderator', label: 'Moderator', icon: ShieldCheck, desc: 'Review flagged content', color: 'emerald-400', gradient: 'from-emerald-500 to-teal-500' },
   { key: 'platform_admin', label: 'Admin', icon: Settings, desc: 'Manage platform & organisations', color: 'purple-400', gradient: 'from-purple-500 to-pink-500' },
 ] as const;
 
 export default function SignupPage() {
-  const [form, setForm] = useState({ email: '', password: '', displayName: '', role: 'viewer' });
+  const [form, setForm] = useState({ email: '', password: '', displayName: '', role: 'user' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { refreshAuth } = useAuth();
   const navigate = useNavigate();
   const update = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -22,6 +25,7 @@ export default function SignupPage() {
     setError(''); setLoading(true);
     try {
       await signup(form.email, form.password, form.displayName, form.role);
+      refreshAuth();
       // Wait for claims propagation (essential for Emulator/slow environments)
       await new Promise(r => setTimeout(r, 1500));
       const route = form.role === 'platform_admin' ? '/admin' : form.role === 'moderator' ? '/moderator' : '/dashboard';
@@ -35,10 +39,7 @@ export default function SignupPage() {
     <div className="min-h-screen bg-aegis-bg flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md">
         <div className="text-center mb-8">
-          <motion.div initial={{ scale: 0.5 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300 }}
-            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-aegis-accent mb-4">
-            <Shield className="w-8 h-8 text-white" />
-          </motion.div>
+          <Logo size="lg" className="mb-4" />
           <h1 className="text-2xl font-bold text-aegis-text">Create your account</h1>
           <p className="text-aegis-text3 text-sm mt-1">Start moderating content with AI</p>
         </div>

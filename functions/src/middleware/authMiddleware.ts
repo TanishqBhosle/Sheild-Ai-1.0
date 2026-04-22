@@ -4,6 +4,9 @@ import { getFirestore } from "firebase-admin/firestore";
 import { hashApiKey } from "../utils/apiKeyUtils";
 import { AuthContext, ApiKey } from "../types";
 import { v4 as uuidv4 } from "uuid";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET || "aegis-ai-secret-key-2024";
 
 // Extend Express Request with auth context
 declare global {
@@ -26,7 +29,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
   const token = authHeader.replace("Bearer ", "");
 
-  // Check if it's an API key (starts with grd_)
+  // 1. Check if it's an API key (starts with grd_)
   if (token.startsWith("grd_")) {
     try {
       const keyHash = hashApiKey(token);
@@ -58,7 +61,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         email: "",
         orgId: keyData.orgId,
         role: "api_key",
-        plan: "free", // Will be resolved by orgValidator
+        plan: "free",
       };
 
       next();
@@ -69,7 +72,23 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     }
   }
 
-  // Otherwise treat as Firebase ID token
+  // 2. Check if it's a Custom JWT (MERN style)
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    req.authContext = {
+      uid: decoded.uid,
+      email: decoded.email,
+      orgId: decoded.orgId,
+      role: decoded.role,
+      plan: decoded.plan || "free",
+    };
+    next();
+    return;
+  } catch (err) {
+    // If JWT verification fails, it might be a Firebase token. Continue to Firebase check.
+  }
+
+  // 3. Fallback: Treat as Firebase ID token
   try {
     const auth = getAuth();
     const decoded = await auth.verifyIdToken(token);
@@ -78,14 +97,14 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
       uid: decoded.uid,
       email: decoded.email || "",
       orgId: decoded.orgId as string || "",
-      role: (decoded.role as AuthContext["role"]) || "viewer",
+      role: (decoded.role as AuthContext["role"]) || "user",
       plan: (decoded.plan as AuthContext["plan"]) || "free",
     };
 
     next();
   } catch (err) {
     console.error("Token verification error:", err);
-    res.status(401).json({ error: "Invalid Firebase token", requestId });
+    res.status(401).json({ error: "Invalid or expired token", requestId });
   }
 }
 

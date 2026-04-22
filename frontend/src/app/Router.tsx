@@ -6,9 +6,6 @@ import DashboardLayout from '../components/layouts/DashboardLayout';
 import DashboardHome from '../pages/dashboard/DashboardHome';
 import ContentList from '../pages/dashboard/ContentList';
 import ContentDetail from '../pages/dashboard/ContentDetail';
-import Analytics from '../pages/dashboard/Analytics';
-import Policies from '../pages/dashboard/Policies';
-import ApiKeys from '../pages/dashboard/ApiKeys';
 import ModeratorLayout from '../components/layouts/ModeratorLayout';
 import ModeratorQueue from '../pages/moderator/ModeratorQueue';
 import ModeratorStats from '../pages/moderator/ModeratorStats';
@@ -49,9 +46,6 @@ export function AppRouter() {
         <Route index element={<DashboardHome />} />
         <Route path="content" element={<ContentList />} />
         <Route path="content/:id" element={<ContentDetail />} />
-        <Route path="analytics" element={<Analytics />} />
-        <Route path="policies" element={<Policies />} />
-        <Route path="api-keys" element={<ApiKeys />} />
       </Route>
 
       {/* Panel 2: Moderator Dashboard */}
@@ -63,7 +57,6 @@ export function AppRouter() {
       {/* Panel 3: Platform Admin */}
       <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
         <Route index element={<AdminDashboard />} />
-        <Route path="organizations" element={<OrgManagement />} />
         <Route path="users" element={<UserManagement />} />
         <Route path="analytics" element={<PlatformAnalytics />} />
       </Route>

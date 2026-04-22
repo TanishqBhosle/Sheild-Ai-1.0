@@ -1,7 +1,7 @@
 import { Timestamp, FieldValue } from "firebase-admin/firestore";
 
 // ──── Enums ────
-export type UserRole = "platform_admin" | "org_owner" | "org_admin" | "moderator" | "viewer" | "api_key";
+export type UserRole = "platform_admin" | "org_owner" | "org_admin" | "moderator" | "user" | "api_key";
 export type ContentType = "text" | "image" | "audio" | "video" | "batch";
 export type ContentStatus = "pending" | "processing" | "completed" | "failed" | "queued_for_review";
 export type ModerationDecision = "approved" | "rejected" | "flagged" | "needs_human_review";
