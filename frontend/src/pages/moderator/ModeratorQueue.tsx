@@ -1,32 +1,73 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../lib/api';
+import { db } from '../../lib/firebase';
+import { collection, query, orderBy, limit, onSnapshot, where, doc, getDoc } from 'firebase/firestore';
+import { useAuth } from '../../app/providers/AuthProvider';
 import { getDecisionBadgeClass, getSeverityColor } from '../../lib/utils';
 import { CATEGORIES } from '../../constants/categories';
 import { CheckCircle, XCircle, ArrowUpRight, Keyboard } from 'lucide-react';
 
 export default function ModeratorQueue() {
+  const { orgId } = useAuth();
   const [queue, setQueue] = useState<Array<Record<string, unknown>>>([]);
   const [selected, setSelected] = useState<Record<string, unknown> | null>(null);
+  const [selectedContent, setSelectedContent] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(false);
   const [notes, setNotes] = useState('');
 
-  const loadQueue = useCallback(() => {
-    api.get<{ queue: Array<Record<string, unknown>> }>('/v1/moderator/queue')
-      .then(d => { setQueue(d.queue || []); if (!selected && (d.queue || []).length > 0) setSelected(d.queue[0]); })
-      .catch(console.error).finally(() => setLoading(false));
-  }, []);
+  useEffect(() => {
+    if (!orgId) return;
 
-  useEffect(loadQueue, [loadQueue]);
+    const q = query(
+      collection(db, `organizations/${orgId}/moderation_results`),
+      where('needsHumanReview', '==', true),
+      orderBy('createdAt', 'asc'),
+      limit(50)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      // Client-side filter: only show items that haven't been reviewed
+      const items = snap.docs
+        .map(doc => ({ resultId: doc.id, ...doc.data() }))
+        .filter(item => !item.reviewedBy);
+      setQueue(items);
+      // Only set selected if none is currently selected
+      setSelected(prev => {
+        if (!prev && items.length > 0) return items[0];
+        // If current selection was removed from queue, pick next
+        if (prev && !items.find(i => i.contentId === prev.contentId)) {
+          return items.length > 0 ? items[0] : null;
+        }
+        return prev;
+      });
+      setLoading(false);
+    });
+
+    return unsub;
+  }, [orgId]);
+
+  // Fetch content for selected result
+  useEffect(() => {
+    if (!selected || !orgId) { setSelectedContent(null); return; }
+    
+    const fetchContent = async () => {
+      const contentId = selected.contentId as string;
+      const docSnap = await getDoc(doc(db, `organizations/${orgId}/content/${contentId}`));
+      if (docSnap.exists()) {
+        setSelectedContent(docSnap.data());
+      }
+    };
+
+    fetchContent();
+  }, [selected, orgId]);
 
   const submitReview = async (decision: string) => {
     if (!selected) return;
     setReviewing(true);
     try {
       await api.post(`/v1/moderator/review/${selected.contentId}`, { decision, notes });
-      setQueue(q => q.filter(i => i.contentId !== selected.contentId));
-      setSelected(queue.find(i => i.contentId !== selected.contentId) || null);
       setNotes('');
     } catch (err) { console.error(err); }
     finally { setReviewing(false); }
@@ -45,7 +86,6 @@ export default function ModeratorQueue() {
 
   const severity = (selected?.severity as number) || 0;
   const categories = (selected?.categories || {}) as Record<string, { triggered: boolean; severity: number; confidence: number }>;
-  const content = selected?.content as Record<string, unknown> | null;
 
   return (
     <div className="flex h-full">
@@ -121,7 +161,14 @@ export default function ModeratorQueue() {
             </div>
 
             {/* Content */}
-            <div className="glass-card"><p className="text-xs text-aegis-text3 mb-2">Content</p><p className="text-sm text-aegis-text whitespace-pre-wrap">{String(content?.text || 'N/A')}</p></div>
+            <div className="glass-card">
+              <p className="text-xs text-aegis-text3 mb-2">Content ({String(selectedContent?.type || '...')})</p>
+              {selectedContent?.type === 'text' && <p className="text-sm text-aegis-text whitespace-pre-wrap">{String(selectedContent?.text || 'No text content')}</p>}
+              {selectedContent?.type === 'image' && <img src={String(selectedContent?.mediaUrl)} className="max-h-64 rounded-lg object-contain" alt="To moderate" />}
+              {selectedContent?.type === 'video' && <video src={String(selectedContent?.mediaUrl)} controls className="max-h-64 rounded-lg" />}
+              {selectedContent?.type === 'audio' && <audio src={String(selectedContent?.mediaUrl)} controls className="w-full" />}
+              {!selectedContent && <div className="h-20 flex items-center justify-center animate-pulse text-aegis-text3">Loading content...</div>}
+            </div>
 
             {/* AI Explanation */}
             {Boolean(selected.explanation) && <div className="glass-card"><p className="text-xs text-aegis-text3 mb-1">AI Says</p><p className="text-sm text-aegis-text2">{String(selected.explanation)}</p></div>}

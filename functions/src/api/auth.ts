@@ -22,12 +22,16 @@ router.post("/signup", async (req: Request, res: Response) => {
     const auth = getAuth();
     const db = getFirestore();
 
+    console.log(`[Signup] Attempting to create user: ${email} (Project: ${process.env.GCLOUD_PROJECT}, Auth Emulator: ${process.env.FIREBASE_AUTH_EMULATOR_HOST})`);
+
     // Create Firebase user
     const userRecord = await auth.createUser({
       email,
       password,
       displayName: displayName || email.split("@")[0],
     });
+
+    console.log(`[Signup] User created successfully: ${userRecord.uid}`);
 
     // Auto-create organization from email domain
     const orgId = uuidv4();

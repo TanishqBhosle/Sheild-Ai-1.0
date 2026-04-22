@@ -9,11 +9,5 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    proxy: {
-      '/v1': {
-        target: 'http://localhost:5001',
-        changeOrigin: true,
-      },
-    },
   },
 });

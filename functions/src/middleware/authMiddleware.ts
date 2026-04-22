@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { hashApiKey } from "../utils/apiKeyUtils";
 import { AuthContext, ApiKey } from "../types";
+import { v4 as uuidv4 } from "uuid";
 
 // Extend Express Request with auth context
 declare global {
@@ -14,7 +15,7 @@ declare global {
 }
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const requestId = req.headers["x-request-id"] as string || crypto.randomUUID();
+  const requestId = req.headers["x-request-id"] as string || uuidv4();
   res.setHeader("X-Request-Id", requestId);
 
   const authHeader = req.headers.authorization;
@@ -83,6 +84,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
     next();
   } catch (err) {
+    console.error("Token verification error:", err);
     res.status(401).json({ error: "Invalid Firebase token", requestId });
   }
 }

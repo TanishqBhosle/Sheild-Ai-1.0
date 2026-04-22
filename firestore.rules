@@ -46,11 +46,11 @@ service cloud.firestore {
 
       // Usage Logs
       match /usage_logs/{period} {
-        allow read:  if sameOrg(orgId) && isAdmin();
+        allow read:  if sameOrg(orgId);
         allow write: if false;
 
         match /daily/{day} {
-          allow read:  if sameOrg(orgId) && isAdmin();
+          allow read:  if sameOrg(orgId);
           allow write: if false;
         }
       }

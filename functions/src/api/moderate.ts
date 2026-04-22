@@ -138,18 +138,6 @@ router.post("/", async (req: Request, res: Response) => {
     await incrementUsage(ctx.orgId, type);
 
     // Fire webhook if configured
-    const orgDoc = await db.doc(`organizations/${ctx.orgId}`).get();
-    const org = orgDoc.data() as Organization;
-    if (org?.webhookUrl && org?.webhookSecret) {
-      dispatchWebhook(
-        org.webhookUrl,
-        org.webhookSecret,
-        result.decision === "rejected" ? "moderation.flagged" : "moderation.completed",
-        ctx.orgId,
-        { contentId, decision: result.decision, severity: result.severity }
-      ).catch(err => console.error("Webhook dispatch error:", err));
-    }
-
     const response: ModerateResponse = {
       requestId,
       contentId,
@@ -161,7 +149,23 @@ router.post("/", async (req: Request, res: Response) => {
       explanation: result.explanation,
     };
 
+    // Fire webhook if configured (background task)
+    db.doc(`organizations/${ctx.orgId}`).get().then(orgDoc => {
+      const org = orgDoc.data() as Organization;
+      if (org?.webhookUrl && org?.webhookSecret) {
+        return dispatchWebhook(
+          org.webhookUrl,
+          org.webhookSecret,
+          result.decision === "rejected" ? "moderation.flagged" : "moderation.completed",
+          ctx.orgId,
+          { contentId, decision: result.decision, severity: result.severity }
+        );
+      }
+      return null;
+    }).catch(err => console.error("Webhook dispatch error:", err));
+
     res.status(200).json(response);
+
   } catch (err: unknown) {
     const error = err as Error;
     console.error("Moderation error:", error);

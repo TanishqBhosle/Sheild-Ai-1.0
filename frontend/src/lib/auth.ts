@@ -1,4 +1,4 @@
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth } from './firebase';
 import { api } from './api';
 
@@ -12,11 +12,19 @@ export async function loginWithGoogle() {
 }
 
 export async function signup(email: string, password: string, displayName: string, role: string) {
+  // Step 1: Call backend to create user + org + claims
   const result = await api.post<{ uid: string; orgId: string; role: string }>('/v1/auth/signup', {
     email, password, displayName, role,
   });
-  // Now sign in with the created credentials
+
+  // Step 2: Sign in with the created credentials
   await signInWithEmailAndPassword(auth, email, password);
+
+  // Step 3: Force token refresh to pick up the new custom claims
+  if (auth.currentUser) {
+    await auth.currentUser.getIdToken(true);
+  }
+
   return result;
 }
 

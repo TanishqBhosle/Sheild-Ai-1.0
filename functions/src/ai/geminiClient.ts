@@ -31,7 +31,7 @@ export function getFlashModel(): GenerativeModel {
 export function getProModel(): GenerativeModel {
   if (!proModel) {
     proModel = getGenAI().getGenerativeModel({
-      model: "gemini-1.5-pro",
+      model: "gemini-1.5-flash",
       generationConfig: {
         temperature: 0.1,
         topP: 0.8,

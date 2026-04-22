@@ -2,9 +2,10 @@ import { getProModel } from "../geminiClient";
 import { buildModerationPrompt } from "../promptFactory";
 import { parseAIResponse, normalizeScores } from "../scoreNormalizer";
 import { Policy, ModerationResult, CategoryScore } from "../../types";
+import { fetchMediaAsBase64 } from "../../utils/fetchMedia";
 
 export async function runAudioPipeline(
-  audioBase64: string,
+  audioInput: string,
   mimeType: string,
   policy?: Policy | null
 ): Promise<{
@@ -18,16 +19,26 @@ export async function runAudioPipeline(
 }> {
   const model = getProModel();
 
-  // Step 1: Transcribe audio using Gemini Pro
-  const transcriptionResult = await model.generateContent([
-    "Transcribe the following audio content. Return ONLY the transcription text, nothing else.",
-    {
-      inlineData: {
-        data: audioBase64,
-        mimeType: mimeType,
+  try {
+    let audioBase64 = audioInput;
+    let finalMimeType = mimeType;
+
+    if (audioInput.startsWith("http")) {
+      const fetched = await fetchMediaAsBase64(audioInput);
+      audioBase64 = fetched.data;
+      finalMimeType = fetched.mimeType;
+    }
+
+    // Step 1: Transcribe audio using Gemini Pro
+    const transcriptionResult = await model.generateContent([
+      "Transcribe the following audio content. Return ONLY the transcription text, nothing else.",
+      {
+        inlineData: {
+          data: audioBase64,
+          mimeType: finalMimeType,
+        },
       },
-    },
-  ]);
+    ]);
 
   const transcription = transcriptionResult.response.text();
 
@@ -46,8 +57,12 @@ export async function runAudioPipeline(
 
   const normalized = normalizeScores(raw, sensitivityMap);
 
-  return {
-    ...normalized,
-    aiModel: "gemini-1.5-pro",
-  };
+    return {
+      ...normalized,
+      aiModel: "gemini-2.0-flash",
+    };
+  } catch (err) {
+    console.error("Audio Pipeline Error:", err);
+    throw err;
+  }
 }

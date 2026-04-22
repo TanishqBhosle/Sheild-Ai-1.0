@@ -4,7 +4,9 @@ import express from "express";
 import cors from "cors";
 
 // Initialize Firebase Admin
-admin.initializeApp();
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 // Import middleware
 import { authMiddleware } from "./middleware/authMiddleware";

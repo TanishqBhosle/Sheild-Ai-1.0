@@ -1,19 +1,44 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../../lib/api';
+import { db } from '../../lib/firebase';
+import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
+import { useAuth } from '../../app/providers/AuthProvider';
 import { getDecisionBadgeClass, formatTimeAgo } from '../../lib/utils';
 import { FileText, Filter, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function ContentList() {
+  const { orgId } = useAuth();
   const [results, setResults] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
-    const params = filter ? `?status=${filter}` : '';
-    api.get<{ results: Array<Record<string, unknown>> }>(`/v1/results${params}`).then(d => setResults(d.results || [])).catch(console.error).finally(() => setLoading(false));
-  }, [filter]);
+    if (!orgId) return;
+
+    const constraints: Parameters<typeof query>[1][] = [];
+    if (filter) {
+      constraints.push(where('decision', '==', filter));
+    }
+    constraints.push(orderBy('createdAt', 'desc'));
+    constraints.push(limit(50));
+
+    const q = query(
+      collection(db, `organizations/${orgId}/moderation_results`),
+      ...constraints
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      setResults(snap.docs.map(doc => ({ resultId: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (err) => {
+      console.error('Firestore listener error:', err);
+      setLoading(false);
+    });
+
+    return unsub;
+  }, [orgId, filter]);
 
   return (
     <div className="space-y-4">

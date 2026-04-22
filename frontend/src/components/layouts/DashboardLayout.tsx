@@ -2,19 +2,16 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { logout } from '../../lib/auth';
-import { LayoutDashboard, FileText, Key, Shield, BarChart3, Webhook, Users, CreditCard, Settings, LogOut, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, LogOut, ChevronLeft, Shield, Key } from 'lucide-react';
 import { useState } from 'react';
 import { PLANS } from '../../constants/plans';
 
 const NAV_ITEMS = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { path: '/dashboard/content', icon: FileText, label: 'Content' },
-  { path: '/dashboard/api-keys', icon: Key, label: 'API Keys' },
-  { path: '/dashboard/policies', icon: Shield, label: 'Policies' },
   { path: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
-  { path: '/dashboard/webhooks', icon: Webhook, label: 'Webhooks' },
-  { path: '/dashboard/team', icon: Users, label: 'Team' },
-  { path: '/dashboard/billing', icon: CreditCard, label: 'Billing' },
+  { path: '/dashboard/policies', icon: Shield, label: 'Policies' },
+  { path: '/dashboard/api-keys', icon: Key, label: 'API Keys' },
 ];
 
 export default function DashboardLayout() {

@@ -6,14 +6,15 @@ import dotenv from "dotenv";
 // Load environment variables
 dotenv.config();
 
-// Initialize Firebase Admin with project config
-process.env.GCLOUD_PROJECT = "aegis-ai-d9204";
-process.env.FIREBASE_AUTH_EMULATOR_HOST = "localhost:9099";
-process.env.FIRESTORE_EMULATOR_HOST = "localhost:8080";
-
-admin.initializeApp({
-  projectId: "aegis-ai-d9204",
-});
+// Initialize Firebase Admin with real project (service account auto-detected or use ADC)
+// For local dev without a service account, we use the project ID
+// The Admin SDK will use Application Default Credentials
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: "aegis-ai-d9204",
+    storageBucket: "aegis-ai-d9204.firebasestorage.app",
+  });
+}
 
 // Import middleware
 import { authMiddleware } from "./middleware/authMiddleware";
@@ -33,7 +34,7 @@ import adminRoutes from "./api/admin";
 import apikeysRoutes from "./api/apikeys";
 
 const app = express();
-const PORT = 5001;
+const PORT = 5002;
 
 // Global middleware
 app.use(cors({ origin: true }));

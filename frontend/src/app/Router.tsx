@@ -6,12 +6,9 @@ import DashboardLayout from '../components/layouts/DashboardLayout';
 import DashboardHome from '../pages/dashboard/DashboardHome';
 import ContentList from '../pages/dashboard/ContentList';
 import ContentDetail from '../pages/dashboard/ContentDetail';
-import ApiKeys from '../pages/dashboard/ApiKeys';
-import Policies from '../pages/dashboard/Policies';
 import Analytics from '../pages/dashboard/Analytics';
-import Webhooks from '../pages/dashboard/Webhooks';
-import TeamMembers from '../pages/dashboard/TeamMembers';
-import Billing from '../pages/dashboard/Billing';
+import Policies from '../pages/dashboard/Policies';
+import ApiKeys from '../pages/dashboard/ApiKeys';
 import ModeratorLayout from '../components/layouts/ModeratorLayout';
 import ModeratorQueue from '../pages/moderator/ModeratorQueue';
 import ModeratorStats from '../pages/moderator/ModeratorStats';
@@ -51,12 +48,9 @@ export function AppRouter() {
         <Route index element={<DashboardHome />} />
         <Route path="content" element={<ContentList />} />
         <Route path="content/:id" element={<ContentDetail />} />
-        <Route path="api-keys" element={<ApiKeys />} />
-        <Route path="policies" element={<Policies />} />
         <Route path="analytics" element={<Analytics />} />
-        <Route path="webhooks" element={<Webhooks />} />
-        <Route path="team" element={<TeamMembers />} />
-        <Route path="billing" element={<Billing />} />
+        <Route path="policies" element={<Policies />} />
+        <Route path="api-keys" element={<ApiKeys />} />
       </Route>
 
       {/* Panel 2: Moderator Dashboard */}

@@ -2,24 +2,47 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { api } from '../../lib/api';
+import { db } from '../../lib/firebase';
+import { doc, onSnapshot, collection, query, where, limit } from 'firebase/firestore';
+import { useAuth } from '../../app/providers/AuthProvider';
 import { getDecisionBadgeClass, getSeverityColor } from '../../lib/utils';
 import { CATEGORIES } from '../../constants/categories';
 
 export default function ContentDetail() {
   const { id } = useParams<{ id: string }>();
-  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const { orgId } = useAuth();
+  const [content, setContent] = useState<Record<string, unknown> | null>(null);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
-    api.get<Record<string, unknown>>(`/v1/results/${id}`).then(setData).catch(console.error).finally(() => setLoading(false));
-  }, [id]);
+    if (!id || !orgId) return;
+
+    // Listen to content doc
+    const contentUnsub = onSnapshot(doc(db, `organizations/${orgId}/content/${id}`), (snap) => {
+      if (snap.exists()) setContent(snap.data());
+      setLoading(false);
+    });
+
+    // Listen to result doc
+    const q = query(
+      collection(db, `organizations/${orgId}/moderation_results`),
+      where('contentId', '==', id),
+      limit(1)
+    );
+    const resultUnsub = onSnapshot(q, (snap) => {
+      if (!snap.empty) setResult(snap.docs[0].data());
+    });
+
+    return () => {
+      contentUnsub();
+      resultUnsub();
+    };
+  }, [id, orgId]);
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-2 border-aegis-accent border-t-transparent rounded-full animate-spin" /></div>;
-  if (!data) return <p className="text-aegis-text3">Content not found</p>;
+  if (!content) return <p className="text-aegis-text3 text-center py-20">Content not found</p>;
 
-  const result = data.result as Record<string, unknown> | null;
-  const content = data.content as Record<string, unknown> | null;
   const categories = (result?.categories || {}) as Record<string, { triggered: boolean; severity: number; confidence: number }>;
   const severity = (result?.severity as number) || 0;
 
@@ -69,8 +92,11 @@ export default function ContentDetail() {
 
       {/* Content Preview */}
       <div className="glass-card">
-        <p className="text-xs text-aegis-text3 mb-2">Content</p>
-        <p className="text-sm text-aegis-text whitespace-pre-wrap">{String(content?.text || 'No text content')}</p>
+        <p className="text-xs text-aegis-text3 mb-3">Content ({String(content?.type)})</p>
+        {content?.type === 'text' && <p className="text-sm text-aegis-text whitespace-pre-wrap">{String(content?.text || 'No text content')}</p>}
+        {content?.type === 'image' && <img src={String(content?.mediaUrl)} className="max-h-[500px] rounded-lg object-contain bg-black/20" alt="Moderated content" />}
+        {content?.type === 'video' && <video src={String(content?.mediaUrl)} controls className="max-h-[500px] rounded-lg bg-black/20" />}
+        {content?.type === 'audio' && <audio src={String(content?.mediaUrl)} controls className="w-full" />}
       </div>
 
       {/* AI Explanation */}
