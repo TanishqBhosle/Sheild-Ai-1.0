@@ -50,13 +50,14 @@ export function normalizeScores(
   if (confidence < 0.60 || hasAlwaysReviewTrigger) {
     decision = "needs_human_review";
     needsHumanReview = true;
-  } else if (severity > 70 && confidence > 0.85) {
+  } else if (severity > 85 && confidence > 0.95) {
     decision = "rejected";
-  } else if (severity < 20 && confidence > 0.85) {
+  } else if (severity < 15 && confidence > 0.95) {
     decision = "approved";
   } else {
-    decision = "flagged";
-    if (confidence < 0.85) {
+    // Anything else is flagged for review if confidence is not extremely high
+    decision = severity > 50 ? "flagged" : "needs_human_review";
+    if (confidence < 0.98) {
       needsHumanReview = true;
     }
   }

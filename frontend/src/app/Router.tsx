@@ -15,6 +15,7 @@ import ModeratorStats from '../pages/moderator/ModeratorStats';
 import AdminLayout from '../components/layouts/AdminLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import OrgManagement from '../pages/admin/OrgManagement';
+import UserManagement from '../pages/admin/UserManagement';
 import PlatformAnalytics from '../pages/admin/PlatformAnalytics';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -63,6 +64,7 @@ export function AppRouter() {
       <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
         <Route index element={<AdminDashboard />} />
         <Route path="organizations" element={<OrgManagement />} />
+        <Route path="users" element={<UserManagement />} />
         <Route path="analytics" element={<PlatformAnalytics />} />
       </Route>
 

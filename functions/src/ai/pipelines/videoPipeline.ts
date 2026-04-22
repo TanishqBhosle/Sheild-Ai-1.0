@@ -72,7 +72,7 @@ Respond with ONLY valid JSON:
 
     return {
       ...normalized,
-      aiModel: "gemini-2.0-flash",
+      aiModel: "gemini-1.5-flash",
     };
   } catch (err) {
     console.error("Video Pipeline Error:", err);

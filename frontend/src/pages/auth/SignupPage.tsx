@@ -22,9 +22,10 @@ export default function SignupPage() {
     setError(''); setLoading(true);
     try {
       await signup(form.email, form.password, form.displayName, form.role);
-      // Router will redirect based on role claims
+      // Wait for claims propagation (essential for Emulator/slow environments)
+      await new Promise(r => setTimeout(r, 1500));
       const route = form.role === 'platform_admin' ? '/admin' : form.role === 'moderator' ? '/moderator' : '/dashboard';
-      navigate(route);
+      navigate(route, { replace: true });
     }
     catch (err: unknown) { setError((err as Error).message); }
     finally { setLoading(false); }

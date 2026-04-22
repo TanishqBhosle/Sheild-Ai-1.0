@@ -14,14 +14,20 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); setLoading(true);
-    try { await loginWithEmail(email, password); navigate('/dashboard'); }
+    try { 
+      await loginWithEmail(email, password); 
+      // The AppRouter will handle redirection once the auth state updates
+    }
     catch (err: unknown) { setError((err as Error).message); }
     finally { setLoading(false); }
   };
 
   const handleGoogle = async () => {
     setError(''); setLoading(true);
-    try { await loginWithGoogle(); navigate('/dashboard'); }
+    try { 
+      await loginWithGoogle(); 
+      // The AppRouter will handle redirection once the auth state updates
+    }
     catch (err: unknown) { setError((err as Error).message); }
     finally { setLoading(false); }
   };

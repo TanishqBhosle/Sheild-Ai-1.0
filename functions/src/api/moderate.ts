@@ -147,6 +147,7 @@ router.post("/", async (req: Request, res: Response) => {
       categories: result.categories,
       processingMs,
       explanation: result.explanation,
+      status: result.decision, // Compatibility field
     };
 
     // Fire webhook if configured (background task)

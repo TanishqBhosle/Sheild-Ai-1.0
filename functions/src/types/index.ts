@@ -204,6 +204,7 @@ export interface ModerateResponse {
   categories: Record<string, CategoryScore>;
   processingMs: number;
   explanation?: string;
+  status: ModerationDecision;
 }
 
 export interface AsyncModerateResponse {

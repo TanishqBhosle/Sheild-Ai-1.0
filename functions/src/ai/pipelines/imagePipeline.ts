@@ -80,7 +80,7 @@ export async function runImagePipeline(
         "violence": { triggered: false, severity: 5, confidence: 0.9 },
         "hateSpeech": { triggered: false, severity: 0, confidence: 0.9 }
       },
-      explanation: "Image analyzed via Aegis Visual Fallback. No obvious violations found in pixels. (Fallback Mode Active)",
+      explanation: "Image analyzed via Aegis Visual Fallback. No obvious violations found in pixels. (Aegis Local Fallback)",
       needsHumanReview: false,
       aiModel: "aegis-local-v1",
     };

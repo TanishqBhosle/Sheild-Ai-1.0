@@ -24,14 +24,23 @@ router.post("/signup", async (req: Request, res: Response) => {
 
     console.log(`[Signup] Attempting to create user: ${email} (Project: ${process.env.GCLOUD_PROJECT}, Auth Emulator: ${process.env.FIREBASE_AUTH_EMULATOR_HOST})`);
 
-    // Create Firebase user
-    const userRecord = await auth.createUser({
-      email,
-      password,
-      displayName: displayName || email.split("@")[0],
-    });
-
-    console.log(`[Signup] User created successfully: ${userRecord.uid}`);
+    // Create or Fetch Firebase user
+    let userRecord;
+    try {
+      userRecord = await auth.createUser({
+        email,
+        password,
+        displayName: displayName || email.split("@")[0],
+      });
+      console.log(`[Signup] New user created: ${userRecord.uid}`);
+    } catch (err: any) {
+      if (err.code === "auth/email-already-exists") {
+        userRecord = await auth.getUserByEmail(email);
+        console.log(`[Signup] Existing user found: ${userRecord.uid}. Updating role to ${assignedRole}.`);
+      } else {
+        throw err;
+      }
+    }
 
     // Auto-create organization from email domain
     const orgId = uuidv4();
@@ -53,8 +62,9 @@ router.post("/signup", async (req: Request, res: Response) => {
       updatedAt: Timestamp.now(),
     });
 
-    // Add user as member with selected role
-    await db.doc(`organizations/${orgId}/members/${userRecord.uid}`).set({
+    // Add or Update user as member with selected role
+    const memberRef = db.doc(`organizations/${orgId}/members/${userRecord.uid}`);
+    await memberRef.set({
       userId: userRecord.uid,
       orgId,
       email,
@@ -62,7 +72,7 @@ router.post("/signup", async (req: Request, res: Response) => {
       role: assignedRole,
       joinedAt: Timestamp.now(),
       lastActiveAt: Timestamp.now(),
-    });
+    }, { merge: true });
 
     // Set custom claims with selected role
     await auth.setCustomUserClaims(userRecord.uid, {

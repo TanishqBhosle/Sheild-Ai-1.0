@@ -59,7 +59,7 @@ export async function runAudioPipeline(
 
     return {
       ...normalized,
-      aiModel: "gemini-2.0-flash",
+      aiModel: "gemini-1.5-flash",
     };
   } catch (err) {
     console.error("Audio Pipeline Error:", err);

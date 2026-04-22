@@ -39,14 +39,13 @@ export default function DashboardHome() {
         ...doc.data()
       })) as DashboardSummary['recentResults'];
       
-      setSummary(prev => ({
-        apiCallsToday: prev?.apiCallsToday || 0,
-        flaggedToday: prev?.flaggedToday || 0,
-        pendingReview: prev?.pendingReview || 0,
-        avgLatencyMs: prev?.avgLatencyMs || 0,
-        ...prev,
-        recentResults: results
-      }));
+      setSummary(prev => {
+        const base = prev || { apiCallsToday: 0, flaggedToday: 0, pendingReview: 0, avgLatencyMs: 0, recentResults: [] };
+        return {
+          ...base,
+          recentResults: results
+        };
+      });
       setLoading(false);
     });
 
@@ -58,14 +57,13 @@ export default function DashboardHome() {
     const statsUnsub = onSnapshot(doc(db, `organizations/${orgId}/usage_logs/${monthKey}/daily/${todayKey}`), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setSummary(prev => ({
-          apiCallsToday: 0,
-          flaggedToday: 0,
-          pendingReview: 0,
-          avgLatencyMs: 0,
-          ...prev,
-          apiCallsToday: data.apiCalls || 0,
-        }));
+        setSummary(prev => {
+          const base = prev || { apiCallsToday: 0, flaggedToday: 0, pendingReview: 0, avgLatencyMs: 0, recentResults: [] };
+          return {
+            ...base,
+            apiCallsToday: data.apiCalls || 0,
+          };
+        });
       }
     });
 
@@ -78,14 +76,13 @@ export default function DashboardHome() {
     const unsubPending = onSnapshot(pendingQuery, (snap) => {
       // Client-side filter: only count items where reviewedBy is not set
       const pending = snap.docs.filter(d => !d.data().reviewedBy);
-      setSummary(prev => ({
-        apiCallsToday: prev?.apiCallsToday || 0,
-        flaggedToday: prev?.flaggedToday || 0,
-        pendingReview: prev?.pendingReview || 0,
-        avgLatencyMs: prev?.avgLatencyMs || 0,
-        ...prev,
-        pendingReview: pending.length
-      }));
+      setSummary(prev => {
+        const base = prev || { apiCallsToday: 0, flaggedToday: 0, pendingReview: 0, avgLatencyMs: 0, recentResults: [] };
+        return {
+          ...base,
+          pendingReview: pending.length
+        };
+      });
     });
 
     return () => {
@@ -114,13 +111,45 @@ export default function DashboardHome() {
           text: quickText || undefined,
           async: fileType === 'video' || fileType === 'audio'
         };
+      } else if (quickText.startsWith('http')) {
+        // Detect type from extension if possible, or default to image
+        const ext = quickText.split('.').pop()?.toLowerCase();
+        let type: any = 'image';
+        if (['mp4', 'webm', 'mov'].includes(ext || '')) type = 'video';
+        if (['mp3', 'wav', 'ogg'].includes(ext || '')) type = 'audio';
+        
+        payload = {
+          type,
+          mediaUrl: quickText,
+          async: type === 'video' || type === 'audio'
+        };
       }
 
-      const res = await api.post<Record<string, unknown>>('/v1/moderate', payload);
-      setQuickResult(res);
+      const res = await api.post<Record<string, any>>('/v1/moderate', payload);
+      
+      if (payload.async) {
+        // For async, we show a "Processing" state and wait for Firestore
+        setQuickResult({ status: 'processing', decision: 'processing', explanation: 'Analysing media... please wait.', severity: 0, confidence: 0 });
+        
+        // Listen for the result in moderation_results collection
+        const q = query(
+          collection(db, `organizations/${orgId}/moderation_results`),
+          where('contentId', '==', res.contentId)
+        );
+        
+        const unsub = onSnapshot(q, (snap) => {
+          if (!snap.empty) {
+            const result = snap.docs[0].data();
+            setQuickResult({ ...result, status: result.decision });
+            unsub();
+          }
+        });
+      } else {
+        setQuickResult(res);
+      }
+      
       setQuickText('');
       setFile(null);
-      // Notification of success could go here
     } catch (err: any) {
       console.error(err);
       // Show error in the result box
@@ -138,9 +167,9 @@ export default function DashboardHome() {
 
   const stats = [
     { label: 'API Calls Today', value: summary?.apiCallsToday || 0, icon: Activity, color: 'text-aegis-accent', bg: 'bg-aegis-accent/10' },
-    { label: 'Flagged Today', value: summary?.flaggedToday || 0, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { label: 'Flagged Today', value: (summary?.recentResults || []).filter(r => r.decision === 'rejected' || r.decision === 'flagged').length, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' },
     { label: 'Pending Review', value: summary?.pendingReview || 0, icon: Eye, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-    { label: 'Avg Latency', value: `${summary?.avgLatencyMs || 0}ms`, icon: Clock, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+    { label: 'Avg Latency', value: `${summary?.recentResults && summary.recentResults.length > 0 ? Math.round(summary.recentResults.reduce((acc, r) => acc + (r.processingMs || 0), 0) / summary.recentResults.length) : 0}ms`, icon: Clock, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
   ];
 
   return (
@@ -163,7 +192,7 @@ export default function DashboardHome() {
         {/* Quick Submit */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card">
           <h2 className="text-sm font-semibold text-aegis-text mb-4 flex items-center gap-2"><Send className="w-4 h-4 text-aegis-accent" />Quick Analysis</h2>
-          <textarea value={quickText} onChange={e => setQuickText(e.target.value)} className="input-field h-24 resize-none mb-3" placeholder="Paste text here or upload a file..." />
+          <textarea value={quickText} onChange={e => setQuickText(e.target.value)} className="input-field h-24 resize-none mb-3" placeholder="Paste text here or enter a media URL..." />
           
           {file && (
             <div className="mb-3 p-2 rounded-lg bg-aegis-bg3 flex items-center justify-between">

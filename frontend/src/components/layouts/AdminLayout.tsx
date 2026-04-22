@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { logout } from '../../lib/auth';
-import { LayoutDashboard, Building2, BarChart3, LogOut } from 'lucide-react';
+import { LayoutDashboard, Building2, BarChart3, LogOut, Users } from 'lucide-react';
 
 export default function AdminLayout() {
   const { user } = useAuth();
@@ -18,6 +18,7 @@ export default function AdminLayout() {
           {[
             { path: '/admin', icon: LayoutDashboard, label: 'Overview', end: true },
             { path: '/admin/organizations', icon: Building2, label: 'Organisations' },
+            { path: '/admin/users', icon: Users, label: 'Users' },
             { path: '/admin/analytics', icon: BarChart3, label: 'Platform Stats' },
           ].map(({ path, icon: Icon, label, end }) => (
             <NavLink key={path} to={path} end={end}

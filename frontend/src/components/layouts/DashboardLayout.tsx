@@ -10,8 +10,6 @@ const NAV_ITEMS = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { path: '/dashboard/content', icon: FileText, label: 'Content' },
   { path: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
-  { path: '/dashboard/policies', icon: Shield, label: 'Policies' },
-  { path: '/dashboard/api-keys', icon: Key, label: 'API Keys' },
 ];
 
 export default function DashboardLayout() {
@@ -38,10 +36,12 @@ export default function DashboardLayout() {
           </button>
         </div>
         <nav className="flex-1 py-2 overflow-y-auto">
-          {NAV_ITEMS.map(({ path, icon: Icon, label, end }) => (
+          {NAV_ITEMS.map(({ path, icon: Icon, label, end }: any) => (
             <NavLink key={path} to={path} end={end}
               className={({ isActive }) => `flex items-center gap-3 px-4 py-2 mx-2 rounded-lg text-sm transition-all duration-200 ${
-                isActive ? 'bg-aegis-accent/15 text-aegis-accent border-l-2 border-aegis-accent' : 'text-aegis-text3 hover:text-aegis-text hover:bg-aegis-bg3'
+                isActive 
+                  ? 'bg-aegis-accent/15 text-aegis-accent border-l-2 border-aegis-accent' 
+                  : 'text-aegis-text3 hover:text-aegis-text hover:bg-aegis-bg3'
               }`}>
               <Icon className="w-4 h-4 shrink-0" />
               {!collapsed && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{label}</motion.span>}
@@ -56,7 +56,7 @@ export default function DashboardLayout() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-aegis-text truncate">{user?.email}</p>
-                <p className="text-[10px] text-aegis-text3">{role}</p>
+                <p className="text-[10px] text-aegis-text3">{role === 'viewer' ? 'User' : role}</p>
               </div>
             </div>
           )}

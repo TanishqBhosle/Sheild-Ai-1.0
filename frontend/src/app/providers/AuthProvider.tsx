@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onIdTokenChanged, type User } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import type { UserRole, PlanTier } from '../../types/org.types';
 
@@ -17,9 +17,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, loading: true, role: null, orgId: null, plan: null });
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
+    const unsub = onIdTokenChanged(auth, async (user) => {
       if (user) {
         const token = await user.getIdTokenResult();
+        console.log('[Auth] Token changed. Role:', token.claims.role);
         setState({
           user, loading: false,
           role: (token.claims.role as UserRole) || 'viewer',

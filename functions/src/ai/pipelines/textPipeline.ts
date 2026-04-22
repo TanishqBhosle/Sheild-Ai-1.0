@@ -1,7 +1,7 @@
 import { getFlashModel } from "../geminiClient";
 import { buildModerationPrompt } from "../promptFactory";
 import { parseAIResponse, normalizeScores } from "../scoreNormalizer";
-import { Policy, ModerationResult, CategoryScore } from "../../types";
+import { Policy, ModerationResult, CategoryScore, ModerationDecision } from "../../types";
 
 export async function runTextPipeline(
   text: string,
@@ -54,37 +54,42 @@ export async function runTextPipeline(
     // This ensures the viva continues even if API keys are down
     const lowerText = text.toLowerCase();
     const categories: Record<string, CategoryScore> = {
-      "hateSpeech": { triggered: false, severity: 5, confidence: 0.9 },
-      "harassment": { triggered: false, severity: 10, confidence: 0.9 },
+      "hateSpeech": { triggered: false, severity: 0, confidence: 0.9 },
+      "harassment": { triggered: false, severity: 0, confidence: 0.9 },
       "violence": { triggered: false, severity: 0, confidence: 0.9 },
       "nsfw": { triggered: false, severity: 0, confidence: 0.9 },
-      "spam": { triggered: false, severity: 5, confidence: 0.9 },
+      "spam": { triggered: false, severity: 0, confidence: 0.9 },
     };
 
     let decision: ModerationResult["decision"] = "approved";
-    let severity = 10;
-    let explanation = "Content analyzed via Aegis Local Engine. No major violations detected.";
+    let severity = 5;
+    let explanation = "Content analyzed via Aegis Local Engine. No violations detected.";
 
-    if (lowerText.includes("kill") || lowerText.includes("die") || lowerText.includes("attack")) {
-      categories["violence"] = { triggered: true, severity: 85, confidence: 0.95 };
+    // Improved detection patterns
+    const patterns = [
+      { words: ["kill", "die", "hurt", "attack", "murder", "weapon"], cat: "violence", sev: 85, exp: "Potential violence or threat detected." },
+      { words: ["hate", "racist", "nazi", "terrorist", "dumb", "stupid"], cat: "hateSpeech", sev: 75, exp: "Hate speech or harassment markers identified." },
+      { words: ["buy", "discount", "click here", "free money", "winner"], cat: "spam", sev: 55, exp: "Spam-like patterns detected." },
+      { words: ["sex", "porn", "adult", "nude", "xxx"], cat: "nsfw", sev: 95, exp: "Explicit content detected." }
+    ];
+
+    for (const p of patterns) {
+      if (p.words.some(w => lowerText.includes(w))) {
+        categories[p.cat] = { triggered: true, severity: p.sev, confidence: 0.95 };
+        if (p.sev > severity) {
+          severity = p.sev;
+          explanation = p.exp;
+        }
+      }
+    }
+
+    // Severity Mapping: Low (0-30) -> Allow, Medium (31-60) -> Flag, High (61-100) -> Block
+    if (severity > 60) {
       decision = "rejected";
-      severity = 85;
-      explanation = "Potential violence or threat detected in text.";
-    } else if (lowerText.includes("hate") || lowerText.includes("racist")) {
-      categories["hateSpeech"] = { triggered: true, severity: 75, confidence: 0.9 };
-      decision = "rejected";
-      severity = 75;
-      explanation = "Hate speech markers identified.";
-    } else if (lowerText.includes("buy") || lowerText.includes("discount") || lowerText.includes("click here")) {
-      categories["spam"] = { triggered: true, severity: 60, confidence: 0.85 };
+    } else if (severity > 30) {
       decision = "flagged";
-      severity = 60;
-      explanation = "Content contains promotional or spam-like patterns.";
-    } else if (lowerText.includes("sex") || lowerText.includes("porn") || lowerText.includes("adult")) {
-      categories["nsfw"] = { triggered: true, severity: 90, confidence: 0.95 };
-      decision = "rejected";
-      severity = 90;
-      explanation = "Explicit content detected.";
+    } else {
+      decision = "approved";
     }
 
     return {
@@ -92,8 +97,8 @@ export async function runTextPipeline(
       severity,
       confidence: 0.9,
       categories,
-      explanation: `${explanation} (Fallback Mode Active)`,
-      needsHumanReview: decision === "flagged" || decision === "needs_human_review",
+      explanation: `${explanation} (Aegis Local Fallback)`,
+      needsHumanReview: decision === "flagged" || (decision as string) === "needs_human_review",
       aiModel: "aegis-local-v1",
     };
   }
