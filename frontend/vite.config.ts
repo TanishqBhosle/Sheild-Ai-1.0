@@ -1,16 +1,19 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: { '@': path.resolve(__dirname, './src') },
+  },
   server: {
-    port: 5173,
+    port: 3000,
     proxy: {
-      // Frontend uses /v1; proxy to local Functions endpoint for local E2E.
-      "/v1": {
-        target: process.env.VITE_API_PROXY_TARGET || "http://127.0.0.1:5001/aegis-ai-d9204/us-central1/api",
-        changeOrigin: true
-      }
-    }
-  }
+      '/v1': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+      },
+    },
+  },
 });

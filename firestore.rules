@@ -1,29 +1,81 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ──── Helpers ────
     function isAuthenticated() { return request.auth != null; }
     function userOrgId() { return request.auth.token.orgId; }
     function userRole() { return request.auth.token.role; }
-    function isAdmin() { return userRole() == 'admin'; }
-    function isModerator() { return userRole() == 'moderator'; }
-    function isUser() { return userRole() == 'user'; }
+    function isPlatformAdmin() { return userRole() == 'platform_admin'; }
+    function isOrgOwner() { return userRole() in ['org_owner', 'platform_admin']; }
+    function isAdmin() { return userRole() in ['org_admin', 'org_owner', 'platform_admin']; }
+    function isModerator() { return userRole() in ['moderator', 'org_admin', 'org_owner', 'platform_admin']; }
     function sameOrg(orgId) { return isAuthenticated() && userOrgId() == orgId; }
 
+    // ──── Organizations ────
     match /organizations/{orgId} {
-      allow read: if sameOrg(orgId) && (isAdmin() || isModerator() || isUser());
-      allow update: if sameOrg(orgId) && isAdmin();
-      allow delete: if false;
+      allow read:   if sameOrg(orgId) || isPlatformAdmin();
+      allow create: if isAuthenticated();
+      allow update: if sameOrg(orgId) && isOrgOwner();
+      allow delete: if isPlatformAdmin();
 
-      match /members/{userId} { allow read: if sameOrg(orgId) && isAdmin(); allow write: if sameOrg(orgId) && isAdmin(); }
-      match /content/{contentId} { allow read: if sameOrg(orgId); allow write: if false; }
-      match /moderation_results/{id} { allow read: if sameOrg(orgId) && (isAdmin() || isModerator() || isUser()); allow write: if false; }
-      match /audit_logs/{logId} { allow read: if sameOrg(orgId) && isAdmin(); allow write, delete: if false; }
-      match /usage_logs/{period} { allow read: if sameOrg(orgId) && isAdmin(); allow write: if false; }
-      match /policies/{policyId} { allow read: if sameOrg(orgId) && isAdmin(); allow write: if sameOrg(orgId) && isAdmin(); }
-      match /feedback_signals/{signalId} { allow read: if sameOrg(orgId) && isAdmin(); allow write: if false; }
+      // Members
+      match /members/{userId} {
+        allow read:   if sameOrg(orgId);
+        allow write:  if sameOrg(orgId) && isAdmin();
+      }
+
+      // Content — Cloud Functions only writes
+      match /content/{contentId} {
+        allow read:  if sameOrg(orgId);
+        allow write: if false;
+      }
+
+      // Moderation Results — Cloud Functions only
+      match /moderation_results/{resultId} {
+        allow read:  if sameOrg(orgId);
+        allow write: if false;
+      }
+
+      // Audit Logs — append-only, no client writes
+      match /audit_logs/{logId} {
+        allow read:   if sameOrg(orgId) && isAdmin();
+        allow write:  if false;
+        allow delete: if false;
+      }
+
+      // Usage Logs
+      match /usage_logs/{period} {
+        allow read:  if sameOrg(orgId) && isAdmin();
+        allow write: if false;
+
+        match /daily/{day} {
+          allow read:  if sameOrg(orgId) && isAdmin();
+          allow write: if false;
+        }
+      }
+
+      // Policies
+      match /policies/{policyId} {
+        allow read:  if sameOrg(orgId);
+        allow write: if sameOrg(orgId) && isAdmin();
+      }
+
+      // Feedback Signals
+      match /feedback_signals/{signalId} {
+        allow read:  if sameOrg(orgId) && isAdmin();
+        allow write: if false;
+      }
     }
 
-    match /api_keys/{keyHash} { allow read, write: if false; }
-    match /platform/{docId} { allow read, write: if false; }
+    // ──── API Keys — service account only ────
+    match /api_keys/{keyHash} {
+      allow read, write: if false;
+    }
+
+    // ──── Platform stats — platform_admin only ────
+    match /platform/{docId} {
+      allow read, write: if isPlatformAdmin();
+    }
   }
 }
