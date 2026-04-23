@@ -16,7 +16,8 @@ export function formatTimeAgo(date: unknown): string {
 }
 
 export function getDecisionColor(decision?: ModerationDecision | string): string {
-  switch (decision) {
+  const d = String(decision).toLowerCase();
+  switch (d) {
     case 'approved': return 'text-emerald-400';
     case 'rejected': return 'text-red-400';
     case 'flagged': return 'text-amber-400';
@@ -26,7 +27,8 @@ export function getDecisionColor(decision?: ModerationDecision | string): string
 }
 
 export function getDecisionBadgeClass(decision?: ModerationDecision | string): string {
-  switch (decision) {
+  const d = String(decision).toLowerCase();
+  switch (d) {
     case 'approved': return 'badge-approved';
     case 'rejected': return 'badge-rejected';
     case 'flagged': return 'badge-flagged';

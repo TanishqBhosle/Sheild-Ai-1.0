@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { logout } from '../../lib/auth';
-import { LayoutDashboard, FileText, BarChart3, LogOut, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, FileText as FileIcon, BarChart3, LogOut, ChevronLeft } from 'lucide-react';
 import Logo from '../common/Logo';
 import ThemeToggle from '../common/ThemeToggle';
 import { useState } from 'react';
@@ -10,14 +10,14 @@ import { PLANS } from '../../constants/plans';
 
 const NAV_ITEMS = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { path: '/dashboard/content', icon: FileText, label: 'Content' },
+  { path: '/dashboard/content', icon: FileIcon, label: 'Content' },
 ];
 
 export default function DashboardLayout() {
   const { user, role, plan } = useAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
-  const planInfo = PLANS[plan || 'free'];
+  const planInfo = PLANS[(plan as keyof typeof PLANS) || 'free'] || PLANS.free;
 
   return (
     <div className="flex h-screen bg-aegis-bg overflow-hidden">
@@ -28,8 +28,8 @@ export default function DashboardLayout() {
             <Logo size="sm" />
             {!collapsed && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
-                <span className="text-aegis-text font-bold text-sm">Aegis AI</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-aegis-accent/20 text-aegis-accent border border-aegis-accent/40">
+                <span className="text-aegis-text font-bold text-sm">Shield AI</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-500 border border-amber-500/40">
                   {planInfo.name.toUpperCase()}
                 </span>
               </motion.div>
@@ -42,9 +42,9 @@ export default function DashboardLayout() {
         <nav className="flex-1 py-2 overflow-y-auto">
           {NAV_ITEMS.map(({ path, icon: Icon, label, end }: any) => (
             <NavLink key={path} to={path} end={end}
-              className={({ isActive }) => `flex items-center gap-3 px-4 py-2 mx-2 rounded-lg text-sm transition-all duration-200 ${
+              className={({ isActive }) => `flex items-center gap-3 px-4 py-2 mx-2 rounded-lg text-sm transition-all duration-300 ${
                 isActive 
-                  ? 'bg-aegis-accent/15 text-aegis-accent border-l-2 border-aegis-accent' 
+                  ? 'bg-amber-500/15 text-amber-500 border-l-2 border-amber-500' 
                   : 'text-aegis-text3 hover:text-aegis-text hover:bg-aegis-bg3'
               }`}>
               <Icon className="w-4 h-4 shrink-0" />
@@ -64,7 +64,7 @@ export default function DashboardLayout() {
               </div>
             </div>
           )}
-          <button onClick={() => { logout(); navigate('/login'); }}
+          <button onClick={() => { logout(); navigate('/auth'); }}
             className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-aegis-text3 hover:text-red-400 rounded transition-colors">
             <LogOut className="w-3.5 h-3.5" />{!collapsed && 'Sign out'}
           </button>

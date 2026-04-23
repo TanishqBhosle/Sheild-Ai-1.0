@@ -34,8 +34,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       // Session is invalid or stale (e.g. emulator restarted)
       localStorage.removeItem('aegis_token');
       localStorage.removeItem('aegis_user');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login?error=session_expired';
+      if (window.location.pathname !== '/auth') {
+        window.location.href = '/auth?error=session_expired';
       }
     }
     throw new Error(data.error || `Request failed: ${res.status}`);

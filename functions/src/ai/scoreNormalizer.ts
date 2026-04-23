@@ -47,21 +47,23 @@ export function normalizeScores(
   const severity = Math.max(baseSeverity, maxSeverity);
   const confidence = Math.min(1, Math.max(0, Math.round(raw.confidence * 100) / 100));
 
-  // Determine final decision based on thresholds
+  // Determine final decision based on thresholds with balanced sensitivity
   let decision: ModerationResult["decision"];
   let needsHumanReview = false;
 
-  // SAFETY-FIRST THRESHOLDS
-  if (confidence < 0.70) {
+  // REFINED ACCURACY ENGINE
+  if (confidence < 0.65) {
     decision = "needs_human_review";
     needsHumanReview = true;
-  } else if (severity >= 60) {
+  } else if (severity >= 75) {
     decision = "rejected";
-  } else if (severity <= 10 && confidence > 0.98) {
-    // Only auto-approve if extremely safe and extremely confident
+  } else if (severity >= 40) {
+    decision = "flagged";
+    needsHumanReview = true;
+  } else if (severity <= 15 && confidence > 0.90) {
     decision = "approved";
   } else {
-    // Everything else requires eyes
+    // Borderline content remains flagged for safety
     decision = "flagged";
     needsHumanReview = true;
   }

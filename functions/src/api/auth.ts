@@ -3,6 +3,7 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { v4 as uuidv4 } from "uuid";
 import { authMiddleware } from "../middleware/authMiddleware";
+import { onboardUser } from "../utils/authHelpers";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -52,26 +53,15 @@ router.post("/signup", async (req: Request, res: Response) => {
       }
     }
 
-    // Save to our custom "users" collection (MERN style)
-    await db.collection("users").doc(userRecord.uid).set({
-      uid: userRecord.uid,
-      email,
-      password: hashedPassword,
-      displayName: displayName || email.split("@")[0],
-      role: assignedRole,
-      createdAt: Timestamp.now(),
-    });
-
-    // Set custom claims with selected role
-    await auth.setCustomUserClaims(userRecord.uid, {
-      role: assignedRole,
-      plan: "free",
-    });
+    // Onboard user (Create Org + Set Claims)
+    const { orgId, role: finalRole } = await onboardUser(userRecord.uid, email, displayName, assignedRole as any, hashedPassword);
 
     res.status(201).json({
       uid: userRecord.uid,
       email: userRecord.email,
-      message: "User created successfully in flat architecture"
+      orgId,
+      role: finalRole,
+      message: "User created and onboarded successfully"
     });
   } catch (err: unknown) {
     console.error("Signup error:", err);
@@ -100,6 +90,12 @@ router.post("/login", async (req, res) => {
     }
 
     const userData = userSnap.docs[0].data();
+    
+    if (!userData.password) {
+      res.status(401).json({ error: "This account uses a different sign-in method (e.g. Google)" });
+      return;
+    }
+
     const isMatch = await bcrypt.compare(password, userData.password);
 
     if (!isMatch) {
@@ -112,6 +108,7 @@ router.post("/login", async (req, res) => {
       { 
         uid: userData.uid, 
         email: userData.email, 
+        orgId: userData.orgId || "",
         role: userData.role,
         plan: "free"
       },
@@ -122,6 +119,7 @@ router.post("/login", async (req, res) => {
     // Generate Firebase Custom Token (for Firestore/Storage)
     const auth = getAuth();
     const firebaseToken = await auth.createCustomToken(userData.uid, {
+      orgId: userData.orgId || "",
       role: userData.role,
       plan: "free"
     });
@@ -186,91 +184,7 @@ router.post("/onboarding", authMiddleware, async (req: Request, res: Response) =
       return;
     }
 
-    const db = getFirestore();
-    const auth = getAuth();
-
-    // 1. Check if user already has custom claims with an orgId
-    const userRecord = await auth.getUser(ctx.uid);
-    if (userRecord.customClaims?.orgId) {
-      res.json({ success: true, message: "User already onboarded", orgId: userRecord.customClaims.orgId });
-      return;
-    }
-
-    // 2. Check if user is already a member of any organization in Firestore
-    const membershipSnap = await db.collectionGroup("members").where("userId", "==", ctx.uid).limit(1).get();
-    
-    let orgId: string;
-    let role: string = "org_owner";
-
-    if (!membershipSnap.empty) {
-      const memberDoc = membershipSnap.docs[0].data();
-      orgId = memberDoc.orgId;
-      role = memberDoc.role;
-    } else {
-      // 3. Create new organization for new Google user
-      orgId = uuidv4();
-      const orgName = userRecord.displayName ? `${userRecord.displayName}'s Org` : `${userRecord.email?.split("@")[0]}'s Org`;
-      const slug = orgName.toLowerCase().replace(/[^a-z0-9]/g, "-").substring(0, 50);
-
-      await db.doc(`organizations/${orgId}`).set({
-        orgId,
-        name: orgName,
-        slug,
-        ownerId: ctx.uid,
-        plan: "free",
-        status: "active",
-        settings: {
-          autoRejectAbove: 80,
-          humanReviewThreshold: 0.65,
-        },
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      });
-
-      // Add as member
-      await db.doc(`organizations/${orgId}/members/${ctx.uid}`).set({
-        userId: ctx.uid,
-        orgId,
-        email: userRecord.email || "",
-        displayName: userRecord.displayName || userRecord.email?.split("@")[0] || "User",
-        role: "org_owner",
-        joinedAt: Timestamp.now(),
-        lastActiveAt: Timestamp.now(),
-      });
-
-      // Create default policy
-      const policyRef = db.collection(`organizations/${orgId}/policies`).doc();
-      await policyRef.set({
-        policyId: policyRef.id,
-        orgId,
-        name: "Default Policy",
-        version: 1,
-        isActive: true,
-        categories: [
-          { name: "hateSpeech", enabled: true, sensitivity: 70, alwaysReview: false },
-          { name: "harassment", enabled: true, sensitivity: 70, alwaysReview: false },
-          { name: "violence", enabled: true, sensitivity: 70, alwaysReview: false },
-          { name: "nsfw", enabled: true, sensitivity: 80, alwaysReview: false },
-          { name: "spam", enabled: true, sensitivity: 50, alwaysReview: false },
-          { name: "selfHarm", enabled: true, sensitivity: 90, alwaysReview: true },
-          { name: "misinformation", enabled: true, sensitivity: 60, alwaysReview: false },
-        ],
-        createdBy: ctx.uid,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      });
-
-      await db.doc(`organizations/${orgId}`).update({
-        "settings.defaultPolicyId": policyRef.id,
-      });
-    }
-
-    // 4. Set custom claims
-    await auth.setCustomUserClaims(ctx.uid, {
-      orgId,
-      role,
-      plan: "free",
-    });
+    const { orgId, role } = await onboardUser(ctx.uid, ctx.email, undefined, ctx.role);
 
     res.json({ success: true, message: "Onboarding complete", orgId, role });
   } catch (err: unknown) {

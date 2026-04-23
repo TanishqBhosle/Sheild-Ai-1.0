@@ -46,6 +46,7 @@ import apikeysRoutes from "./api/apikeys";
 // Import middleware
 import { authMiddleware } from "./middleware/authMiddleware";
 import { rateLimiter } from "./middleware/rateLimiter";
+import { orgValidator } from "./middleware/orgValidator";
 import { requireRole } from "./middleware/rbac";
 
 const app = express();
@@ -58,11 +59,11 @@ app.use(express.json({ limit: "50mb" }));
 // Routes
 app.get("/health", (_req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
 app.use("/v1/auth", authRoutes);
-app.use("/v1/moderate", authMiddleware, rateLimiter, moderateRoutes);
-app.use("/v1/results", authMiddleware, resultsRoutes);
-app.use("/v1/policies", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), policiesRoutes);
-app.use("/v1/dashboard", authMiddleware, dashboardRoutes);
-app.use("/v1/moderator", authMiddleware, requireRole("moderator", "platform_admin"), moderatorRoutes);
+app.use("/v1/moderate", authMiddleware, orgValidator, rateLimiter, moderateRoutes);
+app.use("/v1/results", authMiddleware, orgValidator, resultsRoutes);
+app.use("/v1/policies", authMiddleware, orgValidator, requireRole("org_admin", "org_owner", "platform_admin"), policiesRoutes);
+app.use("/v1/dashboard", authMiddleware, orgValidator, dashboardRoutes);
+app.use("/v1/moderator", authMiddleware, orgValidator, requireRole("moderator", "platform_admin"), moderatorRoutes);
 app.use("/v1/admin", authMiddleware, requireRole("platform_admin"), adminRoutes);
 
 // 404

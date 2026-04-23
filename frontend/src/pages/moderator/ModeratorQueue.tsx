@@ -9,7 +9,7 @@ import { CATEGORIES } from '../../constants/categories';
 import { CheckCircle, XCircle, ArrowUpRight, Clock, AlertTriangle, Eye } from 'lucide-react';
 
 export default function ModeratorQueue() {
-  const { role } = useAuth();
+  const { user, role, orgId } = useAuth();
   const [queue, setQueue] = useState<Array<Record<string, unknown>>>([]);
   const [selected, setSelected] = useState<Record<string, unknown> | null>(null);
   const [selectedContent, setSelectedContent] = useState<Record<string, unknown> | null>(null);
@@ -19,22 +19,26 @@ export default function ModeratorQueue() {
   const [activeTab, setActiveTab] = useState<'all' | 'needs-review' | 'Approved' | 'Flagged' | 'Rejected'>('all');
 
   useEffect(() => {
+    if (!user) return;
     setLoading(true);
 
-    let q;
     const resultsRef = collection(db, 'moderation_results');
-    if (activeTab === 'all') {
-      q = query(resultsRef, orderBy('createdAt', 'desc'), limit(100));
-    } else if (activeTab === 'needs-review') {
-      q = query(resultsRef, where('needsHumanReview', '==', true), orderBy('createdAt', 'desc'), limit(50));
-    } else {
-      q = query(resultsRef, where('status', '==', activeTab), orderBy('createdAt', 'desc'), limit(50));
-    }
+    const baseQuery = query(resultsRef, limit(100));
 
-    const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs.map(doc => ({ resultId: doc.id, ...doc.data() }));
-      setQueue(items);
+    const unsub = onSnapshot(baseQuery, (snap) => {
+      let items = snap.docs.map(doc => ({ resultId: doc.id, ...doc.data() }));
       
+      // Sort in memory
+      items.sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+      // Filter in memory
+      if (activeTab === 'needs-review') {
+        items = items.filter((r: any) => r.needsHumanReview);
+      } else if (activeTab !== 'all') {
+        items = items.filter((r: any) => (r.status === activeTab || r.decision === activeTab));
+      }
+
+      setQueue(items);
       if (!selected && items.length > 0) setSelected(items[0]);
       setLoading(false);
     }, (err) => {
@@ -43,7 +47,7 @@ export default function ModeratorQueue() {
     });
 
     return unsub;
-  }, [activeTab]);
+  }, [activeTab, user]);
 
   // Fetch content for selected result
   useEffect(() => {
@@ -61,8 +65,9 @@ export default function ModeratorQueue() {
     setReviewing(true);
     try {
       console.log(`[ModeratorQueue] Submitting ${decision} for:`, selected.contentId);
-      await api.patch(`/v1/moderator/${selected.contentId}`, { decision, notes });
+      await api.post(`/v1/moderator/review/${selected.contentId}`, { decision, notes });
       setNotes('');
+      // The snapshot listener will update the UI
     } catch (err) { console.error("Review error:", err); }
     finally { setReviewing(false); }
   };

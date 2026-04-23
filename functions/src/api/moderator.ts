@@ -95,32 +95,12 @@ const handleReview = async (req: Request, res: Response) => {
 
     console.log(`[ModeratorReview] Attempting review for contentId: ${contentId}`);
     
-    // Try finding by contentId field
+    // Find by contentId field (standard across the system)
     let resultsSnap = await db.collection("moderation_results")
       .where("contentId", "==", contentId).limit(1).get();
     
-    // If not found, try finding by document ID (resultId)
-    if (resultsSnap.empty) {
-      console.log(`[ModeratorReview] contentId field not found, trying document ID: ${contentId}`);
-      const docRef = db.collection("moderation_results").doc(contentId);
-      const docSnap = await docRef.get();
-      if (docSnap.exists) {
-        // Mock a snapshot
-        resultsSnap = { empty: false, docs: [docSnap] } as any;
-      }
-    }
-    
     if (resultsSnap.empty) { 
-      console.log(`[ModeratorReview] FAILED: No document found for: ${contentId}`);
-      
-      // Emergency Debug: List what IS in the collection
-      const allDocs = await db.collection("moderation_results").limit(10).get();
-      console.log(`[ModeratorReview] Debug: Current collection has ${allDocs.size} docs.`);
-      allDocs.docs.forEach(d => {
-        console.log(`  - DocID: ${d.id}, Field contentId: ${d.data().contentId}`);
-      });
-
-      res.status(404).json({ error: "Result not found" }); 
+      res.status(404).json({ error: "Moderation result not found for this content" }); 
       return; 
     }
 

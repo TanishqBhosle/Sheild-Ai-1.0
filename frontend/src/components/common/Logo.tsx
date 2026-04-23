@@ -25,7 +25,7 @@ export default function Logo({ size = 'md', className = '' }: LogoProps) {
     <motion.div 
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      className={`inline-flex items-center justify-center bg-gradient-to-br from-[#8B5CF6] via-[#7C3AED] to-[#6D28D9] shadow-lg shadow-purple-500/20 ${sizeClasses[size]} ${className}`}
+      className={`inline-flex items-center justify-center bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 shadow-lg shadow-amber-500/20 ${sizeClasses[size]} ${className}`}
     >
       <Shield className={`${iconSizes[size]} text-white`} strokeWidth={1.5} />
     </motion.div>

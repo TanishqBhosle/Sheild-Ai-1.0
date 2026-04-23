@@ -65,13 +65,14 @@ export async function runTextPipeline(
     let severity = 5;
     let explanation = "Content analyzed via Aegis Local Engine. No violations detected.";
 
-    // Improved detection patterns
+    // Improved detection patterns - Expanded for higher accuracy
     const patterns = [
-      { words: ["kill", "die", "hurt", "attack", "murder", "weapon", "shoot", "bomb", "destroy"], cat: "violence", sev: 90, exp: "Potential violence or threat detected." },
-      { words: ["hate", "racist", "nazi", "terrorist", "dumb", "stupid", "slur", "inferior", "superior race", "discrimination"], cat: "hateSpeech", sev: 85, exp: "Hate speech or discriminatory language detected." },
-      { words: ["buy", "discount", "click here", "free money", "winner", "prize", "spam", "congratulations"], cat: "spam", sev: 55, exp: "Spam-like patterns detected." },
-      { words: ["sex", "porn", "adult", "nude", "xxx", "nsfw", "naked"], cat: "nsfw", sev: 95, exp: "Explicit content detected." },
-      { words: ["drug", "cocaine", "heroin", "meth", "illegal", "manufacture", "prohibited", "substance"], cat: "illegalContent", sev: 90, exp: "Illegal or prohibited content detected." }
+      { words: ["kill", "die", "hurt", "attack", "murder", "weapon", "shoot", "bomb", "destroy", "staged", "execution", "terrorism"], cat: "violence", sev: 95, exp: "Graphic violence or high-risk threats detected." },
+      { words: ["hate", "racist", "nazi", "terrorist", "dumb", "stupid", "slur", "inferior", "superior race", "discrimination", "bigot", "xenophobe"], cat: "hateSpeech", sev: 90, exp: "Hate speech or discriminatory language detected." },
+      { words: ["buy", "discount", "click here", "free money", "winner", "prize", "spam", "congratulations", "unlimited", "crypto", "investment"], cat: "spam", sev: 65, exp: "Spam or suspicious commercial pattern detected." },
+      { words: ["sex", "porn", "adult", "nude", "xxx", "nsfw", "naked", "erotic", "intimate"], cat: "nsfw", sev: 98, exp: "Explicit adult content detected." },
+      { words: ["drug", "cocaine", "heroin", "meth", "illegal", "manufacture", "prohibited", "substance", "cannabis", "dealer"], cat: "illegalContent", sev: 95, exp: "Illegal substance or prohibited activity detected." },
+      { words: ["suicide", "end my life", "cut myself", "self harm", "overdose"], cat: "selfHarm", sev: 100, exp: "Self-harm or suicide ideation detected." }
     ];
 
     for (const p of patterns) {

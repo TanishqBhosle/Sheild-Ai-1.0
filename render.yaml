@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: aegis-backend
+    env: node
+    plan: free
+    buildCommand: cd functions && npm install && npm run build
+    startCommand: cd functions && node lib/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5002
+      - fromGroup: aegis-secrets

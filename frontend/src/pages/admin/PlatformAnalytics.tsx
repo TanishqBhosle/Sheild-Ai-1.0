@@ -24,10 +24,10 @@ export default function PlatformAnalytics() {
   }, []);
 
   const cards = [
-    { label: 'Total API Calls', value: stats?.totalCalls || 0, icon: Zap, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-    { label: 'Avg Latency', value: `${stats?.avgLatency || 0}ms`, icon: Activity, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+    { label: 'Total API Calls', value: stats?.totalCalls || 0, icon: Zap, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+    { label: 'Avg Latency', value: `${stats?.avgLatency || 0}ms`, icon: Activity, color: 'text-sky-400', bg: 'bg-sky-500/10' },
     { label: 'AI Accuracy', value: `${stats?.accuracy || 98.2}%`, icon: Globe, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { label: 'Total Users', value: stats?.userCount || 0, icon: Users, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { label: 'Total Users', value: stats?.userCount || 0, icon: Users, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
   ];
 
   if (loading) return <div className="p-12 text-center text-aegis-text3 animate-pulse">Loading platform statistics...</div>;
@@ -36,7 +36,7 @@ export default function PlatformAnalytics() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-aegis-text flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-purple-400" /> Platform Analytics
+          <BarChart3 className="w-5 h-5 text-amber-500" /> Platform Analytics
         </h2>
         <span className="text-[10px] uppercase font-bold text-aegis-text3 tracking-widest bg-aegis-bg3 px-2 py-1 rounded">Live Data</span>
       </div>
@@ -64,8 +64,8 @@ export default function PlatformAnalytics() {
           <div className="flex items-end gap-3 h-48 px-2">
             {(stats?.dailyTrends || []).map((day, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                <div className="w-full bg-purple-500/20 rounded-t relative overflow-hidden" style={{ height: `${(day.calls / (Math.max(...(stats?.dailyTrends.map(d => d.calls) || []), 1))) * 100}%` }}>
-                  <div className="absolute inset-0 bg-gradient-to-t from-purple-500/40 to-transparent" />
+                <div className="w-full bg-amber-500/20 rounded-t relative overflow-hidden" style={{ height: `${(day.calls / (Math.max(...(stats?.dailyTrends.map(d => d.calls) || []), 1))) * 100}%` }}>
+                  <div className="absolute inset-0 bg-gradient-to-t from-amber-500/40 to-transparent" />
                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-aegis-bg3 text-[9px] text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                     {day.calls} reqs
                   </div>

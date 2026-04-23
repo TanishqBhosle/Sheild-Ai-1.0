@@ -21,6 +21,7 @@ router.get("/platform-stats", async (req: Request, res: Response) => {
     const db = getFirestore();
     const usersSnap = await db.collection("users").get();
     const resultsSnap = await db.collection("moderation_results").get();
+    const orgsSnap = await db.collection("organizations").get();
     
     const roleBreakdown: Record<string, number> = {};
     usersSnap.docs.forEach(d => {
@@ -28,10 +29,20 @@ router.get("/platform-stats", async (req: Request, res: Response) => {
       roleBreakdown[r] = (roleBreakdown[r] || 0) + 1;
     });
 
+    const planBreakdown: Record<string, number> = {};
+    orgsSnap.docs.forEach(d => {
+      const p = d.data().plan || "free";
+      planBreakdown[p] = (planBreakdown[p] || 0) + 1;
+    });
+
     res.json({ 
       totalUsers: usersSnap.size, 
       totalModerations: resultsSnap.size,
-      roleBreakdown 
+      totalOrgs: orgsSnap.size,
+      activeOrgs: orgsSnap.docs.filter(d => d.data().status === "active").length,
+      suspendedOrgs: orgsSnap.docs.filter(d => d.data().status === "suspended").length,
+      roleBreakdown,
+      planBreakdown
     });
   } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
 });
@@ -86,6 +97,43 @@ router.get("/analytics", async (req: Request, res: Response) => {
       userCount: usersSnap.size,
       dailyTrends
     });
+  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+});
+
+// GET /v1/admin/organizations
+router.get("/organizations", async (req: Request, res: Response) => {
+  try {
+    const db = getFirestore();
+    const snap = await db.collection("organizations").orderBy("createdAt", "desc").get();
+    res.json({ organizations: snap.docs.map(d => d.data()), total: snap.size });
+  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+});
+
+// POST /v1/admin/organizations/:orgId/suspend
+router.post("/organizations/:orgId/suspend", async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const { reason } = req.body;
+    const db = getFirestore();
+    await db.doc(`organizations/${orgId}`).update({ 
+      status: "suspended", 
+      updatedAt: Timestamp.now(),
+      suspensionReason: reason || "Admin action"
+    });
+    res.json({ success: true, orgId });
+  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+});
+
+// POST /v1/admin/organizations/:orgId/reinstate
+router.post("/organizations/:orgId/reinstate", async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const db = getFirestore();
+    await db.doc(`organizations/${orgId}`).update({ 
+      status: "active", 
+      updatedAt: Timestamp.now() 
+    });
+    res.json({ success: true, orgId });
   } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
 });
 

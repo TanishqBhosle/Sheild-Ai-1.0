@@ -6,8 +6,10 @@ import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/f
 import { getDecisionBadgeClass, formatTimeAgo } from '../../lib/utils';
 import { FileText, ShieldAlert, Clock, CheckCircle2, XCircle, ListFilter } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../app/providers/AuthProvider';
 
 export default function ContentList() {
+  const { user, orgId } = useAuth();
   const [results, setResults] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -21,19 +23,25 @@ export default function ContentList() {
   ];
 
   useEffect(() => {
-    let q;
-    const resultsRef = collection(db, "moderation_results");
-    
-    if (filter === 'all') {
-      q = query(resultsRef, orderBy('createdAt', 'desc'), limit(50));
-    } else if (filter === 'needs_human_review') {
-      q = query(resultsRef, where('needsHumanReview', '==', true), orderBy('createdAt', 'desc'), limit(50));
-    } else {
-      q = query(resultsRef, where('decision', '==', filter), orderBy('createdAt', 'desc'), limit(50));
-    }
+    if (!user) return;
 
-    const unsub = onSnapshot(q, (snap) => {
-      setResults(snap.docs.map(doc => ({ resultId: doc.id, ...doc.data() })));
+    const resultsRef = collection(db, "moderation_results");
+    const baseQuery = query(resultsRef, limit(100));
+    
+    const unsub = onSnapshot(baseQuery, (snap) => {
+      let data = snap.docs.map(doc => ({ resultId: doc.id, ...doc.data() }));
+      
+      // Sort in memory
+      data.sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+      // Filter in memory
+      if (filter === 'needs_human_review') {
+        data = data.filter((r: any) => r.needsHumanReview);
+      } else if (filter !== 'all') {
+        data = data.filter((r: any) => r.decision === filter);
+      }
+
+      setResults(data);
       setLoading(false);
     }, (err) => {
       console.error('Firestore listener error:', err);
@@ -41,7 +49,7 @@ export default function ContentList() {
     });
 
     return unsub;
-  }, [filter]);
+  }, [filter, user]);
 
   return (
     <div className="space-y-4">

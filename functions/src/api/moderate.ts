@@ -43,6 +43,7 @@ router.post("/", async (req: Request, res: Response) => {
     const contentRef = db.doc(`content/${contentId}`);
     await contentRef.set({
       contentId,
+      orgId: "global",
       policyId: policyId || null,
       submittedBy: ctx.uid,
       externalId: externalId || null,
@@ -124,6 +125,7 @@ router.post("/", async (req: Request, res: Response) => {
     const moderationData = {
       resultId: resultRef.id,
       contentId,
+      orgId: "global",
       decision: result.decision,
       status: status, // New status field for moderator panel
       type: type,     // Content type for display

@@ -6,77 +6,88 @@ export function buildModerationPrompt(
   contentType: string = "text"
 ): string {
   const enabledCategories = policy?.categories?.filter(c => c.enabled) || getDefaultCategories();
+  
+  const categoryDefinitions: Record<string, string> = {
+    hateSpeech: "Attacking, dehumanizing, or inciting violence against protected groups (race, religion, gender, etc.).",
+    harassment: "Targeted insults, bullying, stalking, or persistent unwanted contact.",
+    violence: "Graphic violence, threats of physical harm, or instructions for weapons/assault.",
+    spam: "Irrelevant commercial content, phishing, repetitive messages, or scams.",
+    nsfw: "Sexually explicit content, pornography, or inappropriate nudity.",
+    illegalContent: "Sale or promotion of illegal drugs, stolen goods, or criminal services.",
+    selfHarm: "Encouraging or providing methods for suicide or self-injury.",
+    misinformation: "Harmful false information regarding health, safety, or democratic processes."
+  };
+
   const categoryList = enabledCategories.map(c =>
-    `- ${c.name} (sensitivity: ${c.sensitivity}/100${c.alwaysReview ? ", ALWAYS_REVIEW" : ""})`
+    `- ${c.name}: ${categoryDefinitions[c.name] || ""} (Sensitivity: ${c.sensitivity}/100)`
   ).join("\n");
 
   const customInstructions = policy?.customInstructions
-    ? `\n\nADDITIONAL INSTRUCTIONS FROM ORGANIZATION:\n${policy.customInstructions}`
+    ? `\n\nORGANIZATION CUSTOM RULES:\n${policy.customInstructions}`
     : "";
 
-  return `You are Aegis AI, a production content moderation engine. Analyze the following ${contentType} content for policy violations.
+  return `You are Aegis AI, the world's most advanced content moderation engine. Your goal is to provide 100% accurate, unbiased, and context-aware safety analysis.
 
-MODERATION CATEGORIES TO CHECK:
+CORE MISSION: Protect users while minimizing false positives.
+
+MODERATION TAXONOMY:
 ${categoryList}
-
-SCORING RULES:
-- severity: 0-100 integer (0 = perfectly safe, 100 = extreme violation)
-- confidence: 0.0-1.0 float (how certain you are about your assessment)
-- For each category, provide triggered (boolean), severity (0-100), and confidence (0-1)
-- decision: "approved" if severity < 20 and confidence > 0.85
-- decision: "rejected" if severity > 70 and confidence > 0.85
-- decision: "flagged" if severity 20-70 and confidence > 0.60
-- decision: "needs_human_review" if confidence < 0.60 or any ALWAYS_REVIEW category is triggered
 ${customInstructions}
 
-CONTENT TO ANALYZE:
+SCORING FRAMEWORK:
+1. severity (0-100): 
+   - 0-19: Safe/Neutral
+   - 20-39: Minor concern/Borderline
+   - 40-69: Clear violation/Medium risk
+   - 70-100: Extreme violation/High risk
+2. confidence (0.0-1.0): How certain you are of the match.
+3. decision: 
+   - "approved": Safe content.
+   - "rejected": Clear and high-risk violations (severity > 70).
+   - "flagged": Needs attention (severity 30-70).
+   - "needs_human_review": Ambiguous, subtle nuance, or low confidence (< 0.75).
+
+CONTENT TO ANALYZE (${contentType.toUpperCase()}):
 """
 ${contentText}
 """
 
-Respond with ONLY valid JSON in this exact format:
+OUTPUT REQUIREMENT:
+Respond with a SINGLE JSON object. Be concise in the explanation but precise in the scores.
 {
   "decision": "approved" | "rejected" | "flagged" | "needs_human_review",
-  "severity": <number 0-100>,
-  "confidence": <number 0.0-1.0>,
+  "severity": <max_overall_severity>,
+  "confidence": <overall_confidence>,
   "categories": {
-    "<categoryName>": {
-      "triggered": <boolean>,
-      "severity": <number 0-100>,
-      "confidence": <number 0.0-1.0>
-    }
+    "category_name": { "triggered": <bool>, "severity": <0-100>, "confidence": <0-1> }
   },
-  "explanation": "<brief explanation of the decision>"
+  "explanation": "<one-sentence professional reasoning for the final decision>"
 }`;
 }
 
 export function buildImagePrompt(policy?: Policy | null): string {
-  const enabledCategories = policy?.categories?.filter(c => c.enabled) || getDefaultCategories();
-  const categoryList = enabledCategories.map(c =>
-    `- ${c.name} (sensitivity: ${c.sensitivity}/100)`
-  ).join("\n");
+  return `You are Aegis AI Vision. Analyze the provided image for safety violations with extreme precision.
 
-  return `You are Aegis AI, a specialized visual moderation engine. Analyze the provided image for the following policy categories:
-${categoryList}
+TAXONOMY:
+- hateSpeech: Visual symbols of hate, slurs in text, or dehumanizing imagery.
+- violence: Blood, gore, weapons, or physical assault.
+- nsfw: Nudity, sexual acts, or suggestive imagery.
+- illegalContent: Drugs, contraband, or prohibited substances.
 
-SCORING RULES:
-- severity: 0-100 integer (0 = safe, 100 = extreme violation)
-- confidence: 0.0-1.0 float
-- decision: 
-    - "approved" if ALL categories severity < 20
-    - "rejected" if ANY category severity > 70
-    - "flagged" if ANY category severity 20-70
-    - "needs_human_review" if you are uncertain (confidence < 0.6)
+SCORING:
+- rejected if severity > 65
+- flagged if severity 25-65
+- approved if severity < 25
 
-Respond with ONLY valid JSON:
+OUTPUT FORMAT (JSON ONLY):
 {
   "decision": "approved" | "rejected" | "flagged" | "needs_human_review",
-  "severity": <max_severity>,
-  "confidence": <mean_confidence>,
+  "severity": <0-100>,
+  "confidence": <0-1>,
   "categories": { 
-    "<name>": { "triggered": <bool>, "severity": <0-100>, "confidence": <0-1> } 
+    "category": { "triggered": <bool>, "severity": <0-100>, "confidence": <0-1> }
   },
-  "explanation": "<detailed visual reasoning for the decision>"
+  "explanation": "<detailed description of what is visible and why it violates or passes policies>"
 }`;
 }
 
