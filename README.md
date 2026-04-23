@@ -6,6 +6,9 @@
 
 Aegis AI is a production-grade, multimodal content moderation platform designed to protect digital communities from harmful content using state-of-the-art AI. Built with the MERN stack and powered by Google's Gemini 1.5 Flash, Aegis provides real-time analysis for text, images, audio, and video.
 
+VERCEL LINK - https://sheild-ai-1-0-915x.vercel.app/
+RENDER LINK -  https://sheild-ai-1-0-2.onrender.com
+
 ---
 
 ## 🌟 Key Features
