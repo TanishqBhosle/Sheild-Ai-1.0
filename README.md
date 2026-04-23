@@ -85,7 +85,3 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 
-<p align="center">
-  Built with ❤️ by <b>Tanishq Bhosle</b><br>
-  <i>Protecting the internet, one frame at a time.</i>
-</p>
