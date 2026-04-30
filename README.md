@@ -186,6 +186,3 @@ This project is distributed under the **MIT License**. See the `LICENSE` file fo
 
 ---
 
-<div align="center">
-  <p>Built with ❤️ by <a href="https://github.com/TanishqBhosle">Tanishq Bhosle</a></p>
-</div>
