@@ -30,7 +30,7 @@ export default function ModeratorLayout() {
           ))}
         </nav>
         <div className="p-3 border-t border-aegis-border">
-          <button onClick={() => { logout(); navigate('/login'); }}
+          <button onClick={() => { logout(); navigate('/auth'); }}
             className="flex items-center gap-2 w-full px-2 py-1 text-xs text-aegis-text3 hover:text-red-400 rounded transition-colors">
             <LogOut className="w-3.5 h-3.5" />Sign out
           </button>

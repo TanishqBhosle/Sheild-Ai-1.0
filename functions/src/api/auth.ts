@@ -8,7 +8,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "aegis-ai-secret-key-2024";
+const JWT_SECRET = process.env.JWT_SECRET || "aegis-ai-secret-key-2024-dev-only";
+if (!process.env.JWT_SECRET) {
+  console.warn("[Auth] ⚠️  JWT_SECRET not set — using insecure dev default. Set JWT_SECRET env var in production!");
+}
 
 // POST /v1/auth/signup
 router.post("/signup", async (req: Request, res: Response) => {

@@ -10,8 +10,7 @@ import { runImagePipeline } from "../ai/pipelines/imagePipeline";
 import { PROMPT_VERSION } from "../ai/promptFactory";
 import { processAsyncModeration } from "../workers/asyncModerationWorker";
 import { incrementUsage, writeAuditLog } from "../utils/firestoreHelpers";
-import { dispatchWebhook } from "../workers/webhookDispatcher";
-import { Policy, Organization, ContentType, ModerateResponse, AsyncModerateResponse, ModerationDecision } from "../types";
+import { Policy, ContentType, ModerateResponse, AsyncModerateResponse, ModerationDecision } from "../types";
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
@@ -65,16 +64,14 @@ router.post("/", async (req: Request, res: Response) => {
     // Load policy
     let policy: Policy | null = null;
     if (policyId) {
-      const policyDoc = await db.doc(`organizations/${ctx.orgId}/policies/${policyId}`).get();
-      if (policyDoc.exists) policy = policyDoc.data() as Policy;
-    }
-    if (!policy) {
-      // Try default policy
-      const orgDoc = await db.doc(`organizations/${ctx.orgId}`).get();
-      const org = orgDoc.data() as Organization;
-      if (org?.settings?.defaultPolicyId) {
-        const defaultPolicyDoc = await db.doc(`organizations/${ctx.orgId}/policies/${org.settings.defaultPolicyId}`).get();
-        if (defaultPolicyDoc.exists) policy = defaultPolicyDoc.data() as Policy;
+      // Try flat policies collection first (flat architecture)
+      const flatPolicyDoc = await db.doc(`policies/${policyId}`).get();
+      if (flatPolicyDoc.exists) {
+        policy = flatPolicyDoc.data() as Policy;
+      } else if (ctx.orgId && ctx.orgId !== "global") {
+        // Try org-scoped policies for future multi-tenant support
+        const orgPolicyDoc = await db.doc(`organizations/${ctx.orgId}/policies/${policyId}`).get();
+        if (orgPolicyDoc.exists) policy = orgPolicyDoc.data() as Policy;
       }
     }
 

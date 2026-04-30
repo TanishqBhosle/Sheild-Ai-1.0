@@ -23,8 +23,8 @@ export async function processAsyncModeration(contentId: string): Promise<void> {
 
   // Load policy if specified
   let policy: Policy | null = null;
-  if (content.policyId) {
-    const policyDoc = await db.doc(`policies/${content.policyId}`).get();
+  if (content.policyId && content.orgId && content.orgId !== "global") {
+    const policyDoc = await db.doc(`organizations/${content.orgId}/policies/${content.policyId}`).get();
     if (policyDoc.exists) {
       policy = policyDoc.data() as Policy;
     }
@@ -64,10 +64,10 @@ export async function processAsyncModeration(contentId: string): Promise<void> {
     const resultRef = db.collection("moderation_results").doc();
     const batch = db.batch();
 
-    // Map decision to display status for moderator panel
-    let status: "Approved" | "Flagged" | "Rejected" = "Approved";
-    if (result.decision === "rejected") status = "Rejected";
-    else if (result.decision === "flagged" || result.needsHumanReview) status = "Flagged";
+    // Map decision to display status — lowercase to match sync pipeline
+    let status: "approved" | "flagged" | "rejected" = "approved";
+    if (result.decision === "rejected") status = "rejected";
+    else if (result.decision === "flagged" || result.needsHumanReview) status = "flagged";
 
     batch.set(resultRef, {
       resultId: resultRef.id,
@@ -82,12 +82,12 @@ export async function processAsyncModeration(contentId: string): Promise<void> {
       aiModel: result.aiModel,
       promptVersion: "1.0",
       processingMs,
-      needsHumanReview: result.needsHumanReview || status === "Flagged",
+      needsHumanReview: result.needsHumanReview || status === "flagged",
       submittedBy: content.submittedBy || "",
       createdAt: Timestamp.now(),
     });
 
-    const newStatus = (result.needsHumanReview || status === "Flagged") ? "queued_for_review" : "completed";
+    const newStatus = (result.needsHumanReview || status === "flagged") ? "queued_for_review" : "completed";
     batch.update(contentRef, {
       status: newStatus,
       processedAt: Timestamp.now(),

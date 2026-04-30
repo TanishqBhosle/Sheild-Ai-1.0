@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart3, CheckCircle, XCircle, Clock, Eye, AlertTriangle } from 'lucide-react';
 import { db } from '../../lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
+import { collection, query, limit, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { formatNumber, getDecisionBadgeClass } from '../../lib/utils';
 
@@ -20,11 +20,12 @@ export default function ModeratorStats() {
   useEffect(() => {
     const q = query(
       collection(db, "moderation_results"),
-      orderBy('createdAt', 'desc'),
       limit(200)
     );
     const unsub = onSnapshot(q, (snap) => {
-      const results = snap.docs.map(d => d.data());
+      const results = snap.docs.map(d => d.data()).sort((a: any, b: any) =>
+        (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
+      );
       
       const approved = results.filter(r => {
         const s = String(r.status || '').toLowerCase();

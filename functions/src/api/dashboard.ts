@@ -29,7 +29,7 @@ router.get("/summary", async (req: Request, res: Response) => {
       ? Math.round(recentResults.reduce((s, r) => s + (r.processingMs || 0), 0) / recentResults.length) : 0;
 
     const flaggedSnap = await db.collection("moderation_results")
-      .where("status", "==", "Flagged")
+      .where("status", "in", ["flagged", "Flagged"])
       .where("createdAt", ">=", Timestamp.fromDate(new Date(new Date().setHours(0,0,0,0))))
       .get();
     
@@ -163,7 +163,7 @@ router.post("/run-demo", async (req: Request, res: Response) => {
           resultId: `res_${uuidv4().substring(0, 8)}`, 
           type: input.type,
           decision: aiResult.decision,
-          status: action === "Block" ? "Rejected" : (action === "Flag" ? "Flagged" : "Approved"),
+          status: action === "Block" ? "rejected" : (action === "Flag" ? "flagged" : "approved"),
           severity: aiResult.severity, 
           confidence: aiResult.confidence,
           categories: aiResult.categories, 
@@ -171,6 +171,7 @@ router.post("/run-demo", async (req: Request, res: Response) => {
           aiModel: aiResult.aiModel, 
           needsHumanReview: sentToModerator, 
           submittedBy: ctx.uid,
+          orgId: "global",
           createdAt: Timestamp.now()
         });
 

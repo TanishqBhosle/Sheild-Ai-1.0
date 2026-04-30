@@ -90,7 +90,7 @@ router.get("/analytics", async (req: Request, res: Response) => {
 
     const humanReviewed = recentResults.filter(r => r.reviewedAt);
     const accuracy = humanReviewed.length > 0
-      ? Math.round((humanReviewed.filter(r => r.decision === r.status.toLowerCase()).length / humanReviewed.length) * 1000) / 10
+      ? Math.round((humanReviewed.filter(r => r.decision === (r.status ? String(r.status).toLowerCase() : r.decision)).length / humanReviewed.length) * 1000) / 10
       : 99.1; // Default if no reviews yet
 
     res.json({

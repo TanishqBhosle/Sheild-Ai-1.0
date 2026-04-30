@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { logout } from '../../lib/auth';
-import { LayoutDashboard, Building2, BarChart3, LogOut, Users } from 'lucide-react';
+import { BarChart3, LogOut, Users, Building2 } from 'lucide-react';
 import Logo from '../common/Logo';
 import ThemeToggle from '../common/ThemeToggle';
 
@@ -21,6 +21,7 @@ export default function AdminLayout() {
           {[
             { path: '/admin/users', icon: Users, label: 'Users' },
             { path: '/admin/analytics', icon: BarChart3, label: 'Platform Stats' },
+            { path: '/admin/orgs', icon: Building2, label: 'Organisations' },
           ].map(({ path, icon: Icon, label }) => (
             <NavLink key={path} to={path}
               className={({ isActive }) => `flex items-center gap-2 px-3 py-2 mx-2 rounded-lg text-sm transition-all ${
@@ -31,7 +32,7 @@ export default function AdminLayout() {
           ))}
         </nav>
         <div className="p-3 border-t border-aegis-border">
-          <button onClick={() => { logout(); navigate('/login'); }}
+          <button onClick={() => { logout(); navigate('/auth'); }}
             className="flex items-center gap-2 w-full px-2 py-1 text-xs text-aegis-text3 hover:text-red-400 rounded transition-colors">
             <LogOut className="w-3.5 h-3.5" />Sign out
           </button>

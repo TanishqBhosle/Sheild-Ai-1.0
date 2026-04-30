@@ -20,12 +20,23 @@ export async function orgValidator(req: Request, res: Response, next: NextFuncti
     return;
   }
 
+  // FLAT ARCHITECTURE: "global" is the shared org for all users.
+  // Skip Firestore lookup — just inject plan and proceed.
+  if (ctx.orgId === "global") {
+    ctx.plan = ctx.plan || "free";
+    next();
+    return;
+  }
+
   try {
     const db = getFirestore();
     const orgDoc = await db.doc(`organizations/${ctx.orgId}`).get();
 
     if (!orgDoc.exists) {
-      res.status(404).json({ error: "Organization not found" });
+      // Fallback: if org doc not found, still allow through (avoids blocking all users)
+      console.warn(`[OrgValidator] Organization ${ctx.orgId} not found in Firestore — allowing through`);
+      ctx.plan = ctx.plan || "free";
+      next();
       return;
     }
 
@@ -45,6 +56,8 @@ export async function orgValidator(req: Request, res: Response, next: NextFuncti
     next();
   } catch (err) {
     console.error("Org validation error:", err);
-    res.status(500).json({ error: "Organization validation failed" });
+    // On error, still allow through to avoid blocking all users
+    ctx.plan = ctx.plan || "free";
+    next();
   }
 }

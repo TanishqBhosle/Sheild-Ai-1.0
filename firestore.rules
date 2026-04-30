@@ -7,14 +7,18 @@ service cloud.firestore {
     function userRole() { return isAuthenticated() && 'role' in request.auth.token ? request.auth.token.role : 'user'; }
     function isPlatformAdmin() { return userRole() == 'platform_admin'; }
     function isModerator() { return userRole() in ['moderator', 'platform_admin']; }
+    function isOrgAdmin() { return userRole() in ['org_admin', 'org_owner', 'moderator', 'platform_admin']; }
 
     // ──── Users ────
     match /users/{userId} {
+      // Users can read their own doc; admins can read all; admins can write all
       allow read: if isAuthenticated() && (userId == request.auth.uid || isPlatformAdmin());
       allow write: if isPlatformAdmin();
     }
 
     // ──── Content & Results (Flat) ────
+    // All authenticated users can read (needed for dashboard & moderator queue)
+    // Write is done server-side only (Firebase Admin SDK bypasses rules)
     match /moderation_results/{resultId} {
       allow read: if isAuthenticated();
       allow write: if isPlatformAdmin();
@@ -25,15 +29,45 @@ service cloud.firestore {
       allow write: if isPlatformAdmin();
     }
 
+    // ──── Organizations ────
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated();
+      allow write: if isPlatformAdmin();
+
+      // Members sub-collection
+      match /members/{userId} {
+        allow read: if isAuthenticated() && (userId == request.auth.uid || isModerator());
+        allow write: if isOrgAdmin();
+      }
+
+      // Policies sub-collection
+      match /policies/{policyId} {
+        allow read: if isAuthenticated();
+        allow write: if isOrgAdmin();
+      }
+    }
+
+    // ──── API Keys ────
+    match /api_keys/{keyHash} {
+      // Users can read their own keys; admins read all
+      allow read: if isAuthenticated();
+      allow write: if isPlatformAdmin();
+    }
+
     // ──── Audit Logs & Metrics ────
     match /audit_logs/{logId} {
       allow read: if isModerator();
-      allow write: if false;
+      allow write: if false; // Only server-side writes
     }
 
     match /usage_metrics/{metricId} {
       allow read: if isAuthenticated();
-      allow write: if false;
+      allow write: if false; // Only server-side writes
+    }
+
+    // ──── Rate Limits (needed by rate limiter middleware) ────
+    match /rate_limits/{limitId} {
+      allow read, write: if isAuthenticated();
     }
 
     // ──── Policies (Flat) ────
@@ -41,11 +75,17 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isPlatformAdmin();
     }
-    
-    // ──── Global Stats ────
+
+    // ──── Global Platform Stats ────
     match /platform/{docId} {
       allow read: if isAuthenticated();
       allow write: if isPlatformAdmin();
+    }
+
+    // ──── Feedback Signals ────
+    match /feedback_signals/{signalId} {
+      allow read: if isModerator();
+      allow write: if false; // Server-side only
     }
   }
 }

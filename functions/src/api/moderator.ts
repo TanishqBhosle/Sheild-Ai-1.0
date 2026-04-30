@@ -90,10 +90,12 @@ const handleReview = async (req: Request, res: Response) => {
     const contentId = req.params.contentId.trim();
     const { decision, notes } = req.body;
     const db = getFirestore();
+    // Normalize to lowercase — consistent with the sync moderation pipeline
     const normalizedDecision = decision?.toLowerCase(); // approved, rejected, flagged
-    let newStatus = "Rejected";
-    if (normalizedDecision === "approved") newStatus = "Approved";
-    else if (normalizedDecision === "flagged") newStatus = "Flagged";
+    // Status mirrors decision — both are lowercase for consistency
+    const newStatus = normalizedDecision === "approved" ? "approved" 
+      : normalizedDecision === "flagged" ? "flagged" 
+      : "rejected";
 
     console.log(`[ModeratorReview] Attempting review for contentId: ${contentId}`);
     

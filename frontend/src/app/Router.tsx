@@ -76,6 +76,7 @@ export function AppRouter() {
         <Route index element={<Navigate to="/admin/users" replace />} />
         <Route path="users" element={<UserManagement />} />
         <Route path="analytics" element={<PlatformAnalytics />} />
+        <Route path="orgs" element={<OrgManagement />} />
       </Route>
 
       {/* Fallback */}
