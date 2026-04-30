@@ -31,7 +31,7 @@ import authRoutes from "./api/auth";
 import moderateRoutes from "./api/moderate";
 import resultsRoutes from "./api/results";
 import policiesRoutes from "./api/policies";
-import webhooksRoutes from "./api/webhooks";
+// import webhooksRoutes from "./api/webhooks";
 import dashboardRoutes from "./api/dashboard";
 import moderatorRoutes from "./api/moderator";
 import adminRoutes from "./api/admin";
@@ -56,7 +56,7 @@ app.use("/v1/auth", authRoutes);
 app.use("/v1/moderate", authMiddleware, rateLimiter, moderateRoutes);
 app.use("/v1/results", authMiddleware, resultsRoutes);
 app.use("/v1/policies", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), policiesRoutes);
-app.use("/v1/webhooks", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), webhooksRoutes);
+// app.use("/v1/webhooks", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), webhooksRoutes);
 app.use("/v1/dashboard", authMiddleware, dashboardRoutes);
 app.use("/v1/api-keys", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin", "user"), (req, _res, next) => {
   console.log(`[API-Keys] ${req.method} request by ${req.authContext?.uid}`);
