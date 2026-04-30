@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { writeAuditLog } from "../utils/firestoreHelpers";
-import { dispatchWebhook } from "../workers/webhookDispatcher";
+// import { dispatchWebhook } from "../workers/webhookDispatcher";
 
 const router = Router();
 
