@@ -114,7 +114,7 @@ export default function ModeratorQueue() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] uppercase font-bold text-aegis-text3 bg-aegis-bg2 px-1.5 py-0.5 rounded">{(item as any).type || 'text'}</span>
-                      <span className="text-[10px] font-mono text-aegis-text2">{String(item.contentId).substring(0, 12)}</span>
+                      <span className="text-[10px] font-mono text-aegis-text2">{(item.contentId as string)?.substring(0, 12) || 'N/A'}</span>
                     </div>
                     <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
                       status.toLowerCase() === 'approved' ? 'bg-emerald-500/20 text-emerald-400' :

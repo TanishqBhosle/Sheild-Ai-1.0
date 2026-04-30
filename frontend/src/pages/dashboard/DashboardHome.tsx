@@ -386,7 +386,7 @@ export default function DashboardHome() {
                       {r.decision === 'rejected' ? <X className="w-5 h-5" /> : <CheckIcon className="w-5 h-5" />}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-aegis-text truncate group-hover:text-amber-500 transition-colors">Content {r.contentId.substring(0, 8)}</p>
+                      <p className="text-xs font-bold text-aegis-text truncate group-hover:text-amber-500 transition-colors">Content {r.contentId?.substring(0, 8) || 'Unknown'}</p>
                       <p className="text-[10px] text-aegis-text3 flex items-center gap-1">
                         <Clock className="w-2.5 h-2.5" />
                         {formatTimeAgo(r.createdAt as any)}
