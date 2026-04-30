@@ -75,7 +75,7 @@ export default function ContentList() {
                 <motion.tr key={String(r.resultId) || i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
                   className="border-b border-aegis-border/50 hover:bg-aegis-bg3/50 transition-colors cursor-pointer">
                   <td className="px-4 py-3"><Link to={`/dashboard/content/${r.contentId}`} className="text-sm font-mono text-aegis-accent hover:underline">{String(r.contentId)}</Link></td>
-                  <td className="px-4 py-3"><span className={`badge ${getDecisionBadgeClass(r.decision as string)}`}>{String(r.decision)}</span></td>
+                  <td className="px-4 py-3"><span className={`badge ${getDecisionBadgeClass((r.status || r.decision) as string)}`}>{String(r.status || r.decision)}</span></td>
                   <td className="px-4 py-3 text-sm text-aegis-text">{String(r.severity)}/100</td>
                   <td className="px-4 py-3 text-sm text-aegis-text2">{Number(r.confidence).toFixed(2)}</td>
                   <td className="px-4 py-3 text-xs text-aegis-text3">{formatTimeAgo(r.createdAt)}</td>

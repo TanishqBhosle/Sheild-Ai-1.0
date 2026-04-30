@@ -1,3 +1,7 @@
+/**
+ * Firebase Cloud Functions Entry Point
+ * Configures the Express app, registers all API routes, and exports the 'api' function for deployment.
+ */
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import express from "express";
@@ -36,7 +40,7 @@ app.get("/v1/health", (_req, res) => {
 });
 
 // Auth routes
-app.use("/v1/auth", authRoutes); 
+app.use("/v1/auth", authRoutes);
 
 
 // All other routes require auth
@@ -45,7 +49,7 @@ app.use("/v1/results", authMiddleware, resultsRoutes);
 app.use("/v1/policies", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), policiesRoutes);
 app.use("/v1/webhooks", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), webhooksRoutes);
 app.use("/v1/dashboard", authMiddleware, dashboardRoutes);
-app.use("/v1/api-keys", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), apikeysRoutes);
+app.use("/v1/api-keys", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin", "user"), apikeysRoutes);
 app.use("/v1/moderator", authMiddleware, requireRole("moderator", "org_admin", "org_owner", "platform_admin"), moderatorRoutes);
 app.use("/api/moderation", authMiddleware, requireRole("moderator", "org_admin", "org_owner", "platform_admin"), moderatorRoutes);
 app.use("/v1/admin", authMiddleware, requireRole("platform_admin"), adminRoutes);

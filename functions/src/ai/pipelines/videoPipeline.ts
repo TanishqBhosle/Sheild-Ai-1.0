@@ -1,7 +1,27 @@
+/**
+ * Video Moderation Pipeline
+ * Sends the video directly to Gemini 1.5 Flash for dual-channel (visual + audio) analysis.
+ * Falls back to needs_human_review on error — never fabricates violations.
+ */
 import { getFlashModel } from "../geminiClient";
+import { buildVideoPrompt } from "../promptFactory";
 import { parseAIResponse, normalizeScores } from "../scoreNormalizer";
 import { Policy, ModerationResult, CategoryScore } from "../../types";
 import { fetchMediaAsBase64 } from "../../utils/fetchMedia";
+
+// Safe baseline categories when falling back
+function buildSafeCategories(): Record<string, CategoryScore> {
+  return {
+    hateSpeech:     { triggered: false, severity: 0, confidence: 0.0 },
+    harassment:     { triggered: false, severity: 0, confidence: 0.0 },
+    violence:       { triggered: false, severity: 0, confidence: 0.0 },
+    nsfw:           { triggered: false, severity: 0, confidence: 0.0 },
+    illegalContent: { triggered: false, severity: 0, confidence: 0.0 },
+    spam:           { triggered: false, severity: 0, confidence: 0.0 },
+    selfHarm:       { triggered: false, severity: 0, confidence: 0.0 },
+    misinformation: { triggered: false, severity: 0, confidence: 0.0 },
+  };
+}
 
 export async function runVideoPipeline(
   videoInput: string,
@@ -17,36 +37,20 @@ export async function runVideoPipeline(
   aiModel: string;
 }> {
   const model = getFlashModel();
-  
+
   try {
     let videoBase64 = videoInput;
     let finalMimeType = mimeType;
 
+    // Fetch remote video and convert to base64 if needed
     if (videoInput.startsWith("http")) {
       const fetched = await fetchMediaAsBase64(videoInput);
       videoBase64 = fetched.data;
       finalMimeType = fetched.mimeType;
     }
 
-  const enabledCategories = policy?.categories?.filter(c => c.enabled) || [];
-  const categoryList = enabledCategories.length > 0
-    ? enabledCategories.map(c => c.name).join(", ")
-    : "hateSpeech, harassment, violence, nsfw, spam, selfHarm, misinformation";
-
-  const prompt = `You are Aegis AI, analyzing a video for content moderation.
-
-Check for: ${categoryList}
-
-Analyze both the visual frames and any audio/speech in the video.
-
-Respond with ONLY valid JSON:
-{
-  "decision": "approved" | "rejected" | "flagged" | "needs_human_review",
-  "severity": <0-100>,
-  "confidence": <0.0-1.0>,
-  "categories": { "<name>": { "triggered": <bool>, "severity": <0-100>, "confidence": <0-1> } },
-  "explanation": "<brief explanation>"
-}`;
+    // Build the comprehensive video moderation prompt
+    const prompt = buildVideoPrompt(policy);
 
     const result = await model.generateContent([
       prompt,
@@ -58,7 +62,31 @@ Respond with ONLY valid JSON:
       },
     ]);
 
-    const responseText = result.response.text();
+    const response = result.response;
+
+    // If Gemini's safety filters block the video — it's likely harmful content
+    if (response.promptFeedback?.blockReason) {
+      console.warn("[VideoPipeline] Gemini blocked video response:", response.promptFeedback.blockReason);
+      return {
+        decision: "rejected",
+        severity: 90,
+        confidence: 0.90,
+        categories: {
+          ...buildSafeCategories(),
+          violence: { triggered: true, severity: 85, confidence: 0.90 },
+          nsfw:     { triggered: true, severity: 90, confidence: 0.90 },
+        },
+        explanation: `Video rejected by Gemini safety filters (${response.promptFeedback.blockReason}). Likely contains extremely harmful visual or audio content.`,
+        needsHumanReview: true,
+        aiModel: "gemini-1.5-flash",
+      };
+    }
+
+    const responseText = response.text();
+    if (!responseText) {
+      throw new Error("AI returned an empty response for video analysis");
+    }
+
     const raw = parseAIResponse(responseText);
 
     const sensitivityMap: Record<string, number> = {};
@@ -74,14 +102,17 @@ Respond with ONLY valid JSON:
       ...normalized,
       aiModel: "gemini-1.5-flash",
     };
-  } catch (err) {
-    console.error("Video Pipeline Error:", err);
+  } catch (error: any) {
+    console.error("[VideoPipeline] Error:", error.message);
+
+    // Safe fallback — never fabricate severity/violations on error
+    // Route to human review with unknown severity (0 / confidence 0)
     return {
-      decision: "flagged",
-      severity: 60,
-      confidence: 0.7,
-      categories: { "violence": { triggered: true, severity: 60, confidence: 0.7 } },
-      explanation: "Video analysis completed via fallback engine. Potentially sensitive content detected.",
+      decision: "needs_human_review",
+      severity: 0,
+      confidence: 0.0,
+      categories: buildSafeCategories(),
+      explanation: `Video analysis failed (${error.message}). Routed to human review — AI analysis was not completed.`,
       needsHumanReview: true,
       aiModel: "aegis-fallback-v1",
     };

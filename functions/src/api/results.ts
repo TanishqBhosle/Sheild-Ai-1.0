@@ -20,10 +20,9 @@ router.get("/:contentId", async (req: Request, res: Response) => {
 
     const content = contentDoc.data();
 
-    // Find moderation result
+    // Find moderation result — stored with orgId "global" in flat architecture
     const resultsSnap = await db.collection("moderation_results")
       .where("contentId", "==", contentId)
-      .where("orgId", "==", ctx.orgId)
       .limit(1)
       .get();
 
@@ -51,7 +50,6 @@ router.get("/", async (req: Request, res: Response) => {
     const limit = Math.min(parseInt(limitStr as string) || 20, 100);
 
     let query = db.collection("moderation_results")
-      .where("orgId", "==", ctx.orgId)
       .orderBy("createdAt", "desc")
       .limit(limit);
 

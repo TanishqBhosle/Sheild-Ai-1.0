@@ -36,6 +36,7 @@ export async function incrementUsage(
   }, { merge: true });
 
   await batch.commit();
+  console.log(`[Usage] Incremented ${contentType} usage for ${dayKey}`);
 }
 
 export async function writeAuditLog(params: {

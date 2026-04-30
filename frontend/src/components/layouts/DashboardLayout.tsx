@@ -2,15 +2,16 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { logout } from '../../lib/auth';
-import { LayoutDashboard, FileText as FileIcon, BarChart3, LogOut, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, FileText as FileIcon, BarChart3, LogOut, ChevronLeft, Key } from 'lucide-react';
 import Logo from '../common/Logo';
 import ThemeToggle from '../common/ThemeToggle';
 import { useState } from 'react';
-import { PLANS } from '../../constants/plans';
+import { PLANS } from '../../lib/plans';
 
 const NAV_ITEMS = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { path: '/dashboard/content', icon: FileIcon, label: 'Content' },
+  { path: '/dashboard/api-keys', icon: Key, label: 'API Keys' },
 ];
 
 export default function DashboardLayout() {

@@ -101,6 +101,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
       plan: (decoded.plan as AuthContext["plan"]) || "free",
     };
 
+    console.log(`[Auth] User ${req.authContext.uid} authenticated with role ${req.authContext.role} for org ${req.authContext.orgId}`);
+
     next();
   } catch (err) {
     console.error("Token verification error:", err);

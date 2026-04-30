@@ -14,13 +14,19 @@ interface AdminStats {
 
 export default function PlatformAnalytics() {
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<AdminStats>('/v1/admin/analytics')
-      .then(setStats)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get<AdminStats>('/v1/admin/analytics'),
+      api.get<{ keys: any[] }>('/v1/admin/api-keys')
+    ]).then(([statsData, keysData]) => {
+      setStats(statsData);
+      setApiKeys(keysData.keys);
+    })
+    .catch(console.error)
+    .finally(() => setLoading(false));
   }, []);
 
   const cards = [
@@ -63,14 +69,15 @@ export default function PlatformAnalytics() {
           </h3>
           <div className="flex items-end gap-3 h-48 px-2">
             {(stats?.dailyTrends || []).map((day, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                <div className="w-full bg-amber-500/20 rounded-t relative overflow-hidden" style={{ height: `${(day.calls / (Math.max(...(stats?.dailyTrends.map(d => d.calls) || []), 1))) * 100}%` }}>
-                  <div className="absolute inset-0 bg-gradient-to-t from-amber-500/40 to-transparent" />
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-aegis-bg3 text-[9px] text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                    {day.calls} reqs
+              <div key={i} className="flex-1 h-full flex flex-col justify-end items-center gap-2 group">
+                <div className="w-full bg-amber-500/10 rounded-t relative group-hover:bg-amber-500/20 transition-all duration-300" 
+                  style={{ height: `${Math.max((day.calls / (Math.max(...(stats?.dailyTrends.map(d => d.calls) || []), 1))) * 100, 2)}%` }}>
+                  <div className="absolute inset-0 bg-gradient-to-t from-amber-500/60 via-amber-500/30 to-transparent" />
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-aegis-bg3 text-[9px] text-white px-2 py-1 rounded shadow-xl border border-aegis-border opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 font-bold">
+                    {day.calls} requests
                   </div>
                 </div>
-                <span className="text-[8px] text-aegis-text3 uppercase font-medium">{day.date}</span>
+                <span className="text-[8px] text-aegis-text3 uppercase font-bold tracking-tighter">{day.date}</span>
               </div>
             ))}
             {(!stats?.dailyTrends || stats.dailyTrends.length === 0) && (
@@ -95,6 +102,62 @@ export default function PlatformAnalytics() {
               <p className="text-xs text-aegis-text2 leading-relaxed">Platform-wide review queue is clearing at an average of 4.2 mins per item.</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="glass-card p-0 overflow-hidden">
+        <div className="p-4 border-b border-aegis-border bg-aegis-bg3/50 flex items-center justify-between">
+          <h3 className="text-xs font-bold text-aegis-text3 uppercase flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5 text-amber-500" /> Global API Key Monitoring
+          </h3>
+          <span className="text-[10px] font-bold text-aegis-text3">{apiKeys.length} Total Keys</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-aegis-bg2/50 border-b border-aegis-border">
+                <th className="px-4 py-3 text-[10px] font-bold text-aegis-text3 uppercase">Key Name</th>
+                <th className="px-4 py-3 text-[10px] font-bold text-aegis-text3 uppercase">Creator</th>
+                <th className="px-4 py-3 text-[10px] font-bold text-aegis-text3 uppercase">Org ID</th>
+                <th className="px-4 py-3 text-[10px] font-bold text-aegis-text3 uppercase">Status</th>
+                <th className="px-4 py-3 text-[10px] font-bold text-aegis-text3 uppercase">Created</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-aegis-border/50">
+              {apiKeys.map((k, i) => (
+                <tr key={i} className="hover:bg-white/5 transition-colors group">
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-medium text-aegis-text">{k.name}</p>
+                    <p className="text-[10px] font-mono text-aegis-text3 mt-0.5">{k.keyPrefix}...</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="text-sm text-aegis-text2">{k.creatorName}</p>
+                    <p className="text-[10px] text-aegis-text3">{k.creatorEmail}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-mono text-aegis-text2 bg-aegis-bg3 px-1.5 py-0.5 rounded">{k.orgId}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      k.isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      {k.isActive ? 'Active' : 'Revoked'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-aegis-text3">
+                    {new Date(k.createdAt?._seconds * 1000).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+              {apiKeys.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center text-aegis-text3 italic text-sm">
+                    No API keys have been generated on the platform yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

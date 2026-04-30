@@ -25,6 +25,7 @@ export function requireRole(...allowedRoles: UserRole[]) {
     }
 
     if (!allowedRoles.includes(ctx.role)) {
+      console.warn(`[RBAC] Access Denied: User ${ctx.uid} has role ${ctx.role}, but one of [${allowedRoles.join(", ")}] is required for ${req.originalUrl}`);
       res.status(403).json({
         error: "Insufficient permissions",
         required: allowedRoles,

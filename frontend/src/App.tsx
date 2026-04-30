@@ -1,3 +1,7 @@
+/**
+ * Main Application Component
+ * Wraps the application with necessary providers (Router, Theme, Auth) and mounts the Router.
+ */
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './app/providers/AuthProvider';
 import { ThemeProvider } from './app/providers/ThemeProvider';

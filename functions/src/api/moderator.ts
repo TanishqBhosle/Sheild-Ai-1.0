@@ -90,8 +90,10 @@ const handleReview = async (req: Request, res: Response) => {
     const contentId = req.params.contentId.trim();
     const { decision, notes } = req.body;
     const db = getFirestore();
-    const normalizedDecision = decision?.toLowerCase(); // approved, rejected
-    const newStatus = normalizedDecision === "approved" ? "Approved" : "Rejected";
+    const normalizedDecision = decision?.toLowerCase(); // approved, rejected, flagged
+    let newStatus = "Rejected";
+    if (normalizedDecision === "approved") newStatus = "Approved";
+    else if (normalizedDecision === "flagged") newStatus = "Flagged";
 
     console.log(`[ModeratorReview] Attempting review for contentId: ${contentId}`);
     

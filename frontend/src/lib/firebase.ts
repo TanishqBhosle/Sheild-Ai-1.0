@@ -1,3 +1,8 @@
+/**
+ * Firebase Client SDK Initialization
+ * Configures Auth, Firestore, and Storage services.
+ * Automatically connects to local emulators when running in development mode.
+ */
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';

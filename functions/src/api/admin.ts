@@ -4,6 +4,7 @@ import { writeAuditLog } from "../utils/firestoreHelpers";
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
+console.log("[AdminRouter] Initialized");
 
 // GET /v1/admin/users
 router.get("/users", async (req: Request, res: Response) => {
@@ -57,7 +58,9 @@ router.get("/analytics", async (req: Request, res: Response) => {
     let totalCalls = 0;
     
     const usageSnap = await db.collection("usage_metrics").get();
+    console.log(`[AdminAnalytics] Found ${usageSnap.size} usage metrics documents`);
     usageSnap.docs.forEach(doc => {
+      console.log(`[AdminAnalytics] Doc ${doc.id}:`, doc.data());
       if (doc.id.startsWith("daily_")) {
         totalCalls += doc.data().apiCalls || 0;
       }
@@ -134,6 +137,32 @@ router.post("/organizations/:orgId/reinstate", async (req: Request, res: Respons
       updatedAt: Timestamp.now() 
     });
     res.json({ success: true, orgId });
+  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+});
+
+// GET /v1/admin/api-keys
+// List all API keys across all organizations
+router.get("/api-keys", async (req: Request, res: Response) => {
+  try {
+    const db = getFirestore();
+    const limitCount = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const snap = await db.collection("api_keys").orderBy("createdAt", "desc").limit(limitCount).get();
+    
+    const keys = [];
+    for (const d of snap.docs) {
+      const data = d.data();
+      // Fetch creator details
+      const userDoc = await db.doc(`users/${data.createdBy}`).get();
+      const userData = userDoc.exists ? userDoc.data() : null;
+      
+      keys.push({
+        ...data,
+        creatorEmail: userData?.email || "unknown",
+        creatorName: userData?.displayName || "Unknown User"
+      });
+    }
+    
+    res.json({ keys, total: snap.size });
   } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
 });
 

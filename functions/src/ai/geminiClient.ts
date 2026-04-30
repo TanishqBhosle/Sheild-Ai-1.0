@@ -1,3 +1,8 @@
+/**
+ * Google Gemini AI Client
+ * Initializes and manages singleton instances of Gemini 1.5 Flash and Pro models.
+ * Used for all multimodal content moderation analysis.
+ */
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 
 let genAI: GoogleGenerativeAI | null = null;

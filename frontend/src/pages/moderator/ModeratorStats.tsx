@@ -25,12 +25,29 @@ export default function ModeratorStats() {
     );
     const unsub = onSnapshot(q, (snap) => {
       const results = snap.docs.map(d => d.data());
-      const approved = results.filter(r => r.status === 'Approved').length;
-      const rejected = results.filter(r => r.status === 'Rejected').length;
-      const flagged = results.filter(r => r.status === 'Flagged').length;
-      const pending = results.filter(r => r.needsHumanReview && !r.reviewedBy).length;
+      
+      const approved = results.filter(r => {
+        const s = String(r.status || '').toLowerCase();
+        const d = String(r.decision || '').toLowerCase();
+        return s === 'approved' || d === 'approved';
+      }).length;
+
+      const rejected = results.filter(r => {
+        const s = String(r.status || '').toLowerCase();
+        const d = String(r.decision || '').toLowerCase();
+        return s === 'rejected' || d === 'rejected';
+      }).length;
+
+      const flagged = results.filter(r => {
+        const s = String(r.status || '').toLowerCase();
+        const d = String(r.decision || '').toLowerCase();
+        return s === 'flagged' || d === 'flagged';
+      }).length;
+
+      const pending = results.filter(r => r.needsHumanReview === true && !r.reviewedBy).length;
+      
       const avgMs = results.length > 0
-        ? Math.round(results.reduce((s, r) => s + (r.processingMs || 0), 0) / results.length)
+        ? Math.round(results.reduce((acc, r) => acc + (Number(r.processingMs) || 0), 0) / results.length)
         : 0;
 
       setStats({

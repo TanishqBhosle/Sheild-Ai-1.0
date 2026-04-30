@@ -1,3 +1,8 @@
+/**
+ * Local Development Server
+ * Starts a local Express server on port 5002 for rapid development and testing.
+ * Bypasses Firebase Emulators for faster iteration.
+ */
 import * as admin from "firebase-admin";
 import express from "express";
 import cors from "cors";
@@ -53,9 +58,13 @@ app.use("/v1/results", authMiddleware, resultsRoutes);
 app.use("/v1/policies", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), policiesRoutes);
 app.use("/v1/webhooks", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), webhooksRoutes);
 app.use("/v1/dashboard", authMiddleware, dashboardRoutes);
-app.use("/v1/api-keys", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin"), apikeysRoutes);
+app.use("/v1/api-keys", authMiddleware, requireRole("org_admin", "org_owner", "platform_admin", "user"), (req, _res, next) => {
+  console.log(`[API-Keys] ${req.method} request by ${req.authContext?.uid}`);
+  next();
+}, apikeysRoutes);
 app.use("/v1/moderator", authMiddleware, requireRole("moderator", "org_admin", "org_owner", "platform_admin"), moderatorRoutes);
 app.use("/v1/admin", authMiddleware, requireRole("platform_admin"), adminRoutes);
+console.log("[DevServer] Registered /v1/admin routes");
 
 // 404 handler
 app.use((_req, res) => {

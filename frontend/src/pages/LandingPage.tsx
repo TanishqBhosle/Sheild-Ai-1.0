@@ -1,3 +1,8 @@
+/**
+ * Public Landing Page
+ * A high-performance, visually stunning introduction to Shield AI.
+ * Features complex animations, feature highlights, and clear calls to action.
+ */
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { 

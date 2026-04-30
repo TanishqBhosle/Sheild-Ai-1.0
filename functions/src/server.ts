@@ -1,3 +1,8 @@
+/**
+ * Standalone Express Server
+ * Used for production deployments on platforms like Render or Heroku.
+ * Handles Firebase Admin initialization and route mounting.
+ */
 import * as admin from "firebase-admin";
 import express from "express";
 import cors from "cors";
@@ -65,6 +70,7 @@ app.use("/v1/policies", authMiddleware, orgValidator, requireRole("org_admin", "
 app.use("/v1/dashboard", authMiddleware, orgValidator, dashboardRoutes);
 app.use("/v1/moderator", authMiddleware, orgValidator, requireRole("moderator", "platform_admin"), moderatorRoutes);
 app.use("/v1/admin", authMiddleware, requireRole("platform_admin"), adminRoutes);
+app.use("/v1/api-keys", authMiddleware, orgValidator, requireRole("org_admin", "org_owner", "platform_admin", "user"), apikeysRoutes);
 
 // 404
 app.use((_req, res) => res.status(404).json({ error: "Endpoint not found" }));

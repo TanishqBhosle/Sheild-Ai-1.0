@@ -10,7 +10,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface DashboardSummary {
   apiCallsToday: number; flaggedToday: number; pendingReview: number; avgLatencyMs: number;
-  recentResults: Array<{ resultId: string; contentId: string; decision: string; severity: number; confidence: number; processingMs: number; createdAt: unknown }>;
+  recentResults: Array<{ resultId: string; contentId: string; decision: string; status?: string; severity: number; confidence: number; processingMs: number; createdAt: unknown }>;
 }
 
 export default function DashboardHome() {
@@ -325,8 +325,8 @@ export default function DashboardHome() {
                 className={`mt-4 p-4 rounded-xl border-2 ${quickResult.decision === 'error' ? 'bg-red-500/10 border-red-500/30' : 'bg-aegis-bg3 border-aegis-border shadow-inner'}`}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <span className={`badge ${quickResult.decision === 'error' ? 'bg-red-500 text-white' : getDecisionBadgeClass(quickResult.decision as string)}`}>
-                    {String(quickResult.decision).toUpperCase()}
+                  <span className={`badge ${quickResult.decision === 'error' ? 'bg-red-500 text-white' : getDecisionBadgeClass((quickResult.status || quickResult.decision) as string)}`}>
+                    {String(quickResult.status || quickResult.decision).toUpperCase()}
                   </span>
                   {quickResult.processingMs !== 0 && (
                     <motion.span 
@@ -394,7 +394,7 @@ export default function DashboardHome() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-[10px] font-black uppercase tracking-wider ${getDecisionBadgeClass(r.decision)}`}>{r.decision}</p>
+                    <p className={`text-[10px] font-black uppercase tracking-wider ${getDecisionBadgeClass((r.status || r.decision) as string)}`}>{String(r.status || r.decision)}</p>
                     <p className="text-[10px] text-aegis-text3 font-mono">{r.severity}% Sev</p>
                   </div>
                 </motion.div>

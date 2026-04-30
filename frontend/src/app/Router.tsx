@@ -6,11 +6,11 @@ import DashboardLayout from '../components/layouts/DashboardLayout';
 import DashboardHome from '../pages/dashboard/DashboardHome';
 import ContentList from '../pages/dashboard/ContentList';
 import ContentDetail from '../pages/dashboard/ContentDetail';
+import ApiKeys from '../pages/dashboard/ApiKeys';
 import ModeratorLayout from '../components/layouts/ModeratorLayout';
 import ModeratorQueue from '../pages/moderator/ModeratorQueue';
 import ModeratorStats from '../pages/moderator/ModeratorStats';
 import AdminLayout from '../components/layouts/AdminLayout';
-import AdminDashboard from '../pages/admin/AdminDashboard';
 import OrgManagement from '../pages/admin/OrgManagement';
 import UserManagement from '../pages/admin/UserManagement';
 import PlatformAnalytics from '../pages/admin/PlatformAnalytics';
@@ -62,6 +62,7 @@ export function AppRouter() {
         <Route index element={<DashboardHome />} />
         <Route path="content" element={<ContentList />} />
         <Route path="content/:id" element={<ContentDetail />} />
+        <Route path="api-keys" element={<ApiKeys />} />
       </Route>
 
       {/* Panel 2: Moderator Dashboard */}
@@ -72,7 +73,7 @@ export function AppRouter() {
 
       {/* Panel 3: Platform Admin */}
       <Route path="/admin" element={<ProtectedRoute allowedRoles={['platform_admin']}><AdminLayout /></ProtectedRoute>}>
-        <Route index element={<AdminDashboard />} />
+        <Route index element={<Navigate to="/admin/users" replace />} />
         <Route path="users" element={<UserManagement />} />
         <Route path="analytics" element={<PlatformAnalytics />} />
       </Route>
@@ -85,7 +86,7 @@ export function AppRouter() {
 
 export function getDefaultRoute(role: string | null): string {
   switch (role) {
-    case 'platform_admin': return '/admin';
+    case 'platform_admin': return '/admin/users';
     case 'moderator': return '/moderator';
     default: return '/dashboard';
   }

@@ -1,5 +1,5 @@
 import { useAuth } from '../../app/providers/AuthProvider';
-import { PLANS } from '../../constants/plans';
+import { PLANS } from '../../lib/plans';
 import { CreditCard, Zap, TrendingUp } from 'lucide-react';
 
 export default function Billing() {

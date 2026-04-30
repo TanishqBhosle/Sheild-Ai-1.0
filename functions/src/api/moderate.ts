@@ -1,11 +1,17 @@
+/**
+ * Core Moderation API
+ * Handles the main /v1/moderate endpoint.
+ * Orchestrates synchronous (text/image) and asynchronous (audio/video) moderation workflows.
+ */
 import { Router, Request, Response } from "express";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { runTextPipeline } from "../ai/pipelines/textPipeline";
 import { runImagePipeline } from "../ai/pipelines/imagePipeline";
+import { PROMPT_VERSION } from "../ai/promptFactory";
 import { processAsyncModeration } from "../workers/asyncModerationWorker";
 import { incrementUsage, writeAuditLog } from "../utils/firestoreHelpers";
 import { dispatchWebhook } from "../workers/webhookDispatcher";
-import { Policy, Organization, ContentType, ModerateResponse, AsyncModerateResponse } from "../types";
+import { Policy, Organization, ContentType, ModerateResponse, AsyncModerateResponse, ModerationDecision } from "../types";
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
@@ -112,11 +118,11 @@ router.post("/", async (req: Request, res: Response) => {
     const processingMs = Date.now() - startTime;
 
     // 1. MAP AI DECISION TO STATUS
-    // Allow -> Approved, Flag -> Flagged, Block -> Rejected
-    let status: "Approved" | "Flagged" | "Rejected" = "Approved";
-    if (result.decision === "rejected") status = "Rejected";
-    else if (result.decision === "flagged" || result.needsHumanReview) status = "Flagged";
-    else status = "Approved";
+    let status: ModerationDecision = "approved";
+    if (result.decision === "rejected") status = "rejected";
+    else if (result.decision === "flagged") status = "flagged";
+    else if (result.decision === "needs_human_review" || result.needsHumanReview) status = "needs_human_review";
+    else status = "approved";
 
     // 2. SAVE EVERY RESULT TO DB
     const resultRef = db.collection("moderation_results").doc();
@@ -127,23 +133,23 @@ router.post("/", async (req: Request, res: Response) => {
       contentId,
       orgId: "global",
       decision: result.decision,
-      status: status, // New status field for moderator panel
+      status: status, // Standardized lowercase status
       type: type,     // Content type for display
       severity: result.severity,
       confidence: result.confidence,
       categories: result.categories,
       explanation: result.explanation,
       aiModel: result.aiModel,
-      promptVersion: "1.1",
+      promptVersion: PROMPT_VERSION,
       processingMs,
-      needsHumanReview: result.needsHumanReview || status === "Flagged",
+      needsHumanReview: result.needsHumanReview || status === "flagged",
       createdAt: Timestamp.now(),
       submittedBy: ctx.uid,
     };
 
     batch.set(resultRef, moderationData);
 
-    const newContentStatus = status === "Approved" ? "completed" : "queued_for_review";
+    const newContentStatus = status === "approved" ? "completed" : "queued_for_review";
     batch.update(contentRef, {
       status: newContentStatus,
       processedAt: Timestamp.now(),
@@ -169,7 +175,7 @@ router.post("/", async (req: Request, res: Response) => {
       categories: result.categories,
       processingMs,
       explanation: result.explanation,
-      status: result.decision,
+      status: status,
     };
 
     // Fire webhook background (Skipping org-specific webhooks in flat mode for now)

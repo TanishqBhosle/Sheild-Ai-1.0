@@ -16,7 +16,7 @@ export default function ModeratorQueue() {
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(false);
   const [notes, setNotes] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'needs-review' | 'Approved' | 'Flagged' | 'Rejected'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'needs-review' | 'approved' | 'flagged' | 'rejected'>('all');
 
   useEffect(() => {
     if (!user) return;
@@ -33,9 +33,13 @@ export default function ModeratorQueue() {
 
       // Filter in memory
       if (activeTab === 'needs-review') {
-        items = items.filter((r: any) => r.needsHumanReview);
+        items = items.filter((r: any) => r.needsHumanReview === true);
       } else if (activeTab !== 'all') {
-        items = items.filter((r: any) => (r.status === activeTab || r.decision === activeTab));
+        items = items.filter((r: any) => {
+          const status = String(r.status || '').toLowerCase();
+          const decision = String(r.decision || '').toLowerCase();
+          return status === activeTab || decision === activeTab;
+        });
       }
 
       setQueue(items);
@@ -75,9 +79,9 @@ export default function ModeratorQueue() {
   const tabs = [
     { id: 'all', label: 'All', icon: <ArrowUpRight className="w-3 h-3" /> },
     { id: 'needs-review', label: 'Needs Review', icon: <Clock className="w-3 h-3" /> },
-    { id: 'Approved', label: 'Approved', icon: <CheckCircle className="w-3 h-3" /> },
-    { id: 'Flagged', label: 'Flagged', icon: <AlertTriangle className="w-3 h-3" /> },
-    { id: 'Rejected', label: 'Rejected', icon: <XCircle className="w-3 h-3" /> },
+    { id: 'approved', label: 'Approved', icon: <CheckCircle className="w-3 h-3" /> },
+    { id: 'flagged', label: 'Flagged', icon: <AlertTriangle className="w-3 h-3" /> },
+    { id: 'rejected', label: 'Rejected', icon: <XCircle className="w-3 h-3" /> },
   ] as const;
 
   return (
@@ -113,9 +117,9 @@ export default function ModeratorQueue() {
                       <span className="text-[10px] font-mono text-aegis-text2">{String(item.contentId).substring(0, 12)}</span>
                     </div>
                     <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                      status === 'Approved' ? 'bg-emerald-500/20 text-emerald-400' :
-                      status === 'Rejected' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'
-                    }`}>{status}</span>
+                      status.toLowerCase() === 'approved' ? 'bg-emerald-500/20 text-emerald-400' :
+                      status.toLowerCase() === 'rejected' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'
+                    }`}>{status === 'needs_human_review' || status === 'pending' ? 'Needs Review' : status}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 h-1 bg-aegis-bg rounded-full overflow-hidden">
@@ -182,15 +186,18 @@ export default function ModeratorQueue() {
                   </div>
                 </div>
                 
-                <div className="glass-card p-6 bg-aegis-bg3/30 border border-aegis-accent/20">
+                <div className="glass-card p-4 bg-aegis-bg3/30 border border-aegis-accent/20">
                   <h4 className="text-[10px] uppercase font-bold text-aegis-text3 mb-4 tracking-widest">Manual Decision</h4>
-                  <textarea value={notes} onChange={e => setNotes(e.target.value)} className="input-field h-24 mb-4 text-xs" placeholder="Add moderator notes..." />
-                  <div className="flex gap-3">
-                    <button onClick={() => submitReview('approved')} disabled={reviewing} className="flex-1 btn-success text-[11px] font-bold py-2.5 flex items-center justify-center gap-2 uppercase tracking-wider">
-                      <CheckCircle className="w-4 h-4" /> Approve
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} className="input-field h-24 mb-4 text-[11px]" placeholder="Add moderator notes..." />
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => submitReview('approved')} disabled={reviewing} className="flex-1 min-w-[80px] btn-success text-[10px] font-bold py-2 flex items-center justify-center gap-1.5 uppercase tracking-wide">
+                      <CheckCircle className="w-3.5 h-3.5" /> Approve
                     </button>
-                    <button onClick={() => submitReview('rejected')} disabled={reviewing} className="flex-1 btn-danger text-[11px] font-bold py-2.5 flex items-center justify-center gap-2 uppercase tracking-wider">
-                      <XCircle className="w-4 h-4" /> Reject
+                    <button onClick={() => submitReview('flagged')} disabled={reviewing} className="flex-1 min-w-[80px] bg-amber-500/20 text-amber-500 border border-amber-500/50 hover:bg-amber-500/30 transition-colors rounded-lg text-[10px] font-bold py-2 flex items-center justify-center gap-1.5 uppercase tracking-wide">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Flag
+                    </button>
+                    <button onClick={() => submitReview('rejected')} disabled={reviewing} className="flex-1 min-w-[80px] btn-danger text-[10px] font-bold py-2 flex items-center justify-center gap-1.5 uppercase tracking-wide">
+                      <XCircle className="w-3.5 h-3.5" /> Reject
                     </button>
                   </div>
                 </div>

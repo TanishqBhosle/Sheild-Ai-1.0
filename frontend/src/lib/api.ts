@@ -2,6 +2,10 @@ import { auth } from './firebase';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5002').replace(/\/$/, '');
 
+if (!import.meta.env.DEV && !import.meta.env.VITE_API_BASE_URL) {
+  console.warn("⚠️ VITE_API_BASE_URL is not set. Falling back to localhost. This will fail in production!");
+}
+
 async function getHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   
