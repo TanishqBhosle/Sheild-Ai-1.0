@@ -6,7 +6,7 @@ import { AuthContext, ApiKey } from "../types";
 import { v4 as uuidv4 } from "uuid";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "aegis-ai-secret-key-2024";
+const JWT_SECRET = process.env.JWT_SECRET || "aegis-ai-secret-key-2024-dev-only";
 
 // Extend Express Request with auth context
 declare global {

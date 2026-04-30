@@ -21,7 +21,6 @@ export default function AdminLayout() {
           {[
             { path: '/admin/users', icon: Users, label: 'Users' },
             { path: '/admin/analytics', icon: BarChart3, label: 'Platform Stats' },
-            { path: '/admin/orgs', icon: Building2, label: 'Organisations' },
           ].map(({ path, icon: Icon, label }) => (
             <NavLink key={path} to={path}
               className={({ isActive }) => `flex items-center gap-2 px-3 py-2 mx-2 rounded-lg text-sm transition-all ${

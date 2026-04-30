@@ -3,13 +3,10 @@
  * Starts a local Express server on port 5002 for rapid development and testing.
  * Bypasses Firebase Emulators for faster iteration.
  */
+import "dotenv/config";
 import * as admin from "firebase-admin";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-
-// Load environment variables
-dotenv.config();
 
 // Initialize Firebase Admin with real project (service account auto-detected or use ADC)
 // For local dev without a service account, we use the project ID

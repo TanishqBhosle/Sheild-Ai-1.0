@@ -1,6 +1,6 @@
 /**
  * Google Gemini AI Client
- * Initializes and manages singleton instances of Gemini 1.5 Flash and Pro models.
+ * Initializes and manages singleton instances of Gemini 2.0 Flash and Flash-Lite models.
  * Used for all multimodal content moderation analysis.
  */
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
@@ -21,13 +21,13 @@ function getGenAI(): GoogleGenerativeAI {
 export function getFlashModel(): GenerativeModel {
   if (!flashModel) {
     flashModel = getGenAI().getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       generationConfig: {
         temperature: 0.1,
         topP: 0.8,
         maxOutputTokens: 2048,
       }
-    }, { apiVersion: "v1beta" });
+    });
   }
   return flashModel;
 }
@@ -35,13 +35,13 @@ export function getFlashModel(): GenerativeModel {
 export function getProModel(): GenerativeModel {
   if (!proModel) {
     proModel = getGenAI().getGenerativeModel({
-      model: "gemini-1.5-pro",
+      model: "gemini-2.0-flash",
       generationConfig: {
         temperature: 0.1,
         topP: 0.8,
         maxOutputTokens: 4096,
       }
-    }, { apiVersion: "v1beta" });
+    });
   }
   return proModel;
 }

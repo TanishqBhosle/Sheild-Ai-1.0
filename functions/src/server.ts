@@ -3,13 +3,10 @@
  * Used for production deployments on platforms like Render or Heroku.
  * Handles Firebase Admin initialization and route mounting.
  */
+import "dotenv/config";
 import * as admin from "firebase-admin";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-
-// Load environment variables
-dotenv.config();
 
 // Enforce critical env vars in production
 if (process.env.NODE_ENV === "production") {

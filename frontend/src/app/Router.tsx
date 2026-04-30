@@ -11,7 +11,6 @@ import ModeratorLayout from '../components/layouts/ModeratorLayout';
 import ModeratorQueue from '../pages/moderator/ModeratorQueue';
 import ModeratorStats from '../pages/moderator/ModeratorStats';
 import AdminLayout from '../components/layouts/AdminLayout';
-import OrgManagement from '../pages/admin/OrgManagement';
 import UserManagement from '../pages/admin/UserManagement';
 import PlatformAnalytics from '../pages/admin/PlatformAnalytics';
 
@@ -76,7 +75,6 @@ export function AppRouter() {
         <Route index element={<Navigate to="/admin/users" replace />} />
         <Route path="users" element={<UserManagement />} />
         <Route path="analytics" element={<PlatformAnalytics />} />
-        <Route path="orgs" element={<OrgManagement />} />
       </Route>
 
       {/* Fallback */}
