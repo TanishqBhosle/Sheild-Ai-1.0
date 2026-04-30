@@ -163,12 +163,19 @@ router.post("/set-claims", authMiddleware, async (req: Request, res: Response) =
       plan: ctx.plan,
     });
 
-    // Also update role in Firestore members collection
+    // Also update role in Firestore members collection AND top-level users collection
     const db = getFirestore();
-    await db.doc(`organizations/${ctx.orgId}/members/${userId}`).update({
-      role,
-      updatedAt: Timestamp.now()
-    });
+    const batch = db.batch();
+
+    // Update org members subcollection
+    const memberRef = db.doc(`organizations/${ctx.orgId}/members/${userId}`);
+    batch.update(memberRef, { role, updatedAt: Timestamp.now() });
+
+    // Update top-level users collection (what UserManagement.tsx reads)
+    const userRef = db.doc(`users/${userId}`);
+    batch.update(userRef, { role, updatedAt: Timestamp.now() });
+
+    await batch.commit();
 
     res.json({ success: true, message: `Claims updated for user ${userId}` });
   } catch (err: unknown) {

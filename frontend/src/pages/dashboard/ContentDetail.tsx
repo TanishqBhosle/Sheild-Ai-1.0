@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { api } from '../../lib/api';
 import { db } from '../../lib/firebase';
-import { doc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { getDecisionBadgeClass, getSeverityColor } from '../../lib/utils';
 import { CATEGORIES } from '../../constants/categories';
 
@@ -22,12 +22,16 @@ export default function ContentDetail() {
 
     const resultsQuery = query(
       collection(db, "moderation_results"),
-      where('contentId', '==', id),
-      orderBy('createdAt', 'desc')
+      where('contentId', '==', id)
+      // Note: orderBy removed to avoid requiring a composite index.
+      // We sort in memory below.
     );
 
     const resultsUnsub = onSnapshot(resultsQuery, (snap) => {
-      setResults(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+      const sorted = snap.docs
+        .map(d => ({ ...d.data(), id: d.id }))
+        .sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setResults(sorted);
       setLoading(false);
     });
 

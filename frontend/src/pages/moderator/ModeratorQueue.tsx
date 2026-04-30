@@ -58,6 +58,11 @@ export default function ModeratorQueue() {
     if (!selected) { setSelectedContent(null); return; }
     const fetchContent = async () => {
       const contentId = selected.contentId as string;
+      // Guard against missing/invalid contentId (e.g. old demo records)
+      if (!contentId || contentId === 'undefined') {
+        setSelectedContent(null);
+        return;
+      }
       const docSnap = await getDoc(doc(db, `content/${contentId}`));
       if (docSnap.exists()) setSelectedContent(docSnap.data());
     };

@@ -81,8 +81,10 @@ router.get("/analytics", async (req: Request, res: Response) => {
       });
     }
 
-    const recentResultsSnap = await db.collection("moderation_results").orderBy("createdAt", "desc").limit(100).get();
-    const recentResults = recentResultsSnap.docs.map(d => d.data());
+    const recentResultsSnap = await db.collection("moderation_results").limit(100).get();
+    const recentResults = recentResultsSnap.docs
+      .map(d => d.data())
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     
     const avgLatency = recentResults.length > 0 
       ? Math.round(recentResults.reduce((sum, r) => sum + (r.processingMs || 0), 0) / recentResults.length) 
